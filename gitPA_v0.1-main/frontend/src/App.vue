@@ -1,8 +1,8 @@
 <template>
   <div class="min-h-screen bg-gray-950">
     <header class="bg-gradient-to-r from-gray-800 to-gray-900 p-6 shadow-xl border-b border-gray-700">
-      <h1 class="text-3xl font-bold text-center bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
-        GitHub Assistant
+      <h1 class="text-3xl font-bold text-center bg-white bg-clip-text text-transparent">
+        gitPA 2.0
       </h1>
     </header>
 

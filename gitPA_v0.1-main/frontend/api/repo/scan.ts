@@ -1,6 +1,62 @@
 // @ts-nocheck
-import { fetchRepoContents } from './_lib';
 import axios from 'axios';
+
+async function fetchRepoContents(owner: string, repo: string, path = ''): Promise<any[]> {
+  const response = await axios.get(
+    `https://api.github.com/repos/${owner}/${repo}/contents/${path}`,
+    {
+      headers: {
+        Authorization: `Bearer ${process.env.GITHUB_TOKEN || ''}`,
+        Accept: 'application/vnd.github.v3+json',
+      },
+      responseType: 'json',
+    }
+  );
+
+  const items = response.data as any[];
+
+  const contents = await Promise.all(
+    items.map(async (item: any) => {
+      if (item.type === 'dir') {
+        return {
+          name: item.name,
+          path: item.path,
+          type: 'dir',
+          children: await fetchRepoContents(owner, repo, item.path),
+        };
+      } else {
+        let content = '';
+        if (item.size < 1000000) {
+          try {
+            const fileResponse = await axios.get(
+              `https://api.github.com/repos/${owner}/${repo}/contents/${item.path}`,
+              {
+                headers: {
+                  Authorization: `Bearer ${process.env.GITHUB_TOKEN || ''}`,
+                  Accept: 'application/vnd.github.v3.raw',
+                },
+                responseType: 'text',
+              }
+            );
+            content = fileResponse.data as string;
+          } catch (err) {
+            console.error(`Error fetching content for ${item.path}:`, err);
+          }
+        }
+
+        return {
+          name: item.name,
+          path: item.path,
+          type: 'file',
+          content,
+          size: item.size,
+        };
+      }
+    })
+  );
+
+  return contents;
+}
 
 export default async function handler(req, res) {
   try {
@@ -23,7 +79,12 @@ export default async function handler(req, res) {
 
     res.json({ status: 'success', fileStructure, repo: { name: metadataResponse.data.name, owner: metadataResponse.data.owner.login, description: metadataResponse.data.description, summary } });
   } catch (error) {
-    console.error('scan error', error);
-    res.status(500).json({ status: 'error', message: 'Failed to scan repository' });
+    // Log useful error details for debugging (response body if available)
+    console.error('scan error', error?.message || error);
+    if (error?.response?.data) {
+      console.error('scan error response data:', error.response.data);
+    }
+    const safeMessage = error?.response?.data?.message || error?.message || 'Failed to scan repository';
+    res.status(500).json({ status: 'error', message: String(safeMessage) });
   }
 }

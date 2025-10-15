@@ -43,7 +43,7 @@ export const useRepoStore = defineStore('repo', {
       this.error = null;
 
       try {
-  const response = await api.post('/api/repo/scan', { url });
+        const response = await api.post('/api/repo/scan', { url });
         this.repoInfo = response.data.repo;
         
         // Add initial system message
@@ -52,9 +52,10 @@ export const useRepoStore = defineStore('repo', {
           role: 'assistant',
           content: `I've analyzed the repository "${this.repoInfo?.name ?? 'repository'}". How can I help you with it?`
         });
-      } catch (error) {
-        this.error = 'Failed to scan repository';
-        console.error('Error scanning repository:', error);
+      } catch (error: any) {
+        const msg = error?.response?.data?.message || error?.message || 'Failed to scan repository';
+        this.error = String(msg);
+        console.error('Error scanning repository:', msg, error);
       } finally {
         this.isLoading = false;
       }

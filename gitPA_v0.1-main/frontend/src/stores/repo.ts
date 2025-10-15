@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import axios from 'axios';
+import api from '../utils/axios';
 
 interface Message {
   id: string;
@@ -43,14 +43,14 @@ export const useRepoStore = defineStore('repo', {
       this.error = null;
 
       try {
-        const response = await axios.post('http://localhost:3000/api/repo/scan', { url });
+  const response = await api.post('/api/repo/scan', { url });
         this.repoInfo = response.data.repo;
         
         // Add initial system message
         this.messages.push({
           id: Date.now().toString(),
           role: 'assistant',
-          content: `I've analyzed the repository "${this.repoInfo.name}". How can I help you with it?`
+          content: `I've analyzed the repository "${this.repoInfo?.name ?? 'repository'}". How can I help you with it?`
         });
       } catch (error) {
         this.error = 'Failed to scan repository';
@@ -74,7 +74,7 @@ export const useRepoStore = defineStore('repo', {
       this.error = null;
 
       try {
-        const response = await axios.post('http://localhost:3000/api/repo/assist', {
+        const response = await api.post('/api/repo/assist', {
           repoUrl: this.url,
           query
         });

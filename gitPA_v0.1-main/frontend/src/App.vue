@@ -167,7 +167,8 @@ const { fileStructure, loading: scanning, error: scanError } = storeToRefs(repos
 // Repo store for chat functionality
 const repoStore = useRepoStore();
 const query = ref('');
-const { messages, isLoading: chatLoading, error: chatError } = storeToRefs(repoStore);
+// removed `chatError` because it was declared but never read (TS6133)
+const { messages, isLoading: chatLoading } = storeToRefs(repoStore);
 
 const messagesContainer = ref<HTMLElement | null>(null);
 

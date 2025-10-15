@@ -1,7 +1,10 @@
 import axios from 'axios';
 
-const api = axios.create({
-  baseURL: 'http://localhost:3000',
-});
+// Use Vite environment variable for API base URL in production/preview.
+// Vite exposes variables prefixed with `VITE_` via `import.meta.env`.
+// Default to same-origin so `/api/*` routes resolve to Vercel serverless functions in production.
+const baseURL = import.meta.env.VITE_API_BASE_URL || '';
 
-export default api; 
+const api = axios.create({ baseURL });
+
+export default api;

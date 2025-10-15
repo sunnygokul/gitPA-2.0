@@ -9,12 +9,15 @@ const props = defineProps<{
 }>();
 
 // Configure marked to use highlight.js for code blocks
-marked.setOptions({
-  highlight: (code, lang) => {
+// `marked` allows a highlight function; typed here with any to satisfy TS checks
+(marked as any).setOptions({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  highlight: (code: any, lang: any) => {
     if (lang && hljs.getLanguage(lang)) {
-      return hljs.highlight(code, { language: lang }).value;
+      // highlight returns a result object; use .value
+      return (hljs.highlight(code, { language: lang }) as any).value;
     }
-    return hljs.highlightAuto(code).value;
+    return (hljs.highlightAuto(code) as any).value;
   },
 });
 

@@ -1,9 +1,4 @@
-import OpenAI from 'openai';
 import { config } from '../config';
-
-const openai = new OpenAI({
-  apiKey: config.OPENAI_API_KEY,
-});
 
 // Maximum context length in characters (approximately 50KB)
 const MAX_CONTEXT_LENGTH = 50000;
@@ -15,34 +10,52 @@ export async function getAIResponse(query: string, context: string): Promise<str
       ? context.substring(0, MAX_CONTEXT_LENGTH) + '\n... (context truncated due to size limits)'
       : context;
 
-    const response = await openai.chat.completions.create({
-      model: 'gpt-3.5-turbo',
-      messages: [
-        {
-          role: 'system',
-          content: 'You are a helpful AI assistant that helps users understand code repositories. You have access to the repository contents and can provide detailed explanations and insights. If the context is truncated, please mention that in your response.'
-        },
-        {
-          role: 'user',
-          content: `Context: ${truncatedContext}\n\nQuery: ${query}`
-        }
-      ],
-      max_tokens: 2000,
-      temperature: 0.7,
+    const apiKey = process.env.HUGGINGFACE_API_KEY || config.HUGGINGFACE_API_KEY;
+    if (!apiKey) {
+      throw new Error('HUGGINGFACE_API_KEY is not set');
+    }
+
+    const response = await fetch('https://router.huggingface.co/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'Qwen/Qwen2.5-7B-Instruct',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a helpful AI assistant that helps users understand code repositories. You have access to the repository contents and can provide detailed explanations and insights. If the context is truncated, please mention that in your response.'
+          },
+          {
+            role: 'user',
+            content: `Context: ${truncatedContext}\n\nQuery: ${query}`
+          }
+        ],
+        max_tokens: 2048,
+        temperature: 0.3,
+      }),
     });
 
-    return response.choices[0]?.message?.content || 'No response generated';
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`HuggingFace API error: ${response.status} - ${errorText}`);
+    }
+
+    const data = await response.json();
+    return data.choices[0]?.message?.content || 'No response generated';
   } catch (error: any) {
-    console.error('OpenAI API error:', error);
+    console.error('HuggingFace API error:', error);
     
     // Handle rate limit errors specifically
-    if (error.code === 'rate_limit_exceeded') {
-      throw new Error('The request was too large. Please try a more specific query or view smaller files.');
+    if (error.message?.includes('429') || error.message?.includes('rate limit')) {
+      throw new Error('Rate limit exceeded. Please try again in a moment.');
     }
     
-    // Handle other OpenAI errors
-    if (error.response?.data?.error?.message) {
-      throw new Error(`OpenAI API error: ${error.response.data.error.message}`);
+    // Handle other API errors
+    if (error.message) {
+      throw new Error(`HuggingFace API error: ${error.message}`);
     }
     
     throw new Error('Failed to generate AI response');

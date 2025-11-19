@@ -1,187 +1,311 @@
 <template>
-  <div class="min-h-screen bg-gray-950">
-    <header class="bg-gradient-to-r from-gray-800 to-gray-900 p-6 shadow-xl border-b border-gray-700">
-      <h1 class="text-3xl font-bold text-center bg-white bg-clip-text text-transparent">
-        gitPA 2.0
-      </h1>
-    </header>
-
-    <main class="container mx-auto p-6">
-      <!-- Repository Input Section -->
-      <div class="mb-8 max-w-3xl mx-auto">
-        <div class="flex gap-3">
-          <input
-            v-model="repositoryUrl"
-            type="text"
-            placeholder="Enter GitHub repository URL (e.g., https://github.com/username/repo)"
-            class="flex-1 px-5 py-3 bg-gray-800 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 border border-gray-700 transition-all placeholder-gray-500"
-          />
-          <button
-            @click="scanRepository"
-            :disabled="scanning"
-            class="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg hover:from-blue-700 hover:to-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-medium shadow-lg hover:shadow-xl transform hover:scale-105 active:scale-95"
-          >
-            {{ scanning ? 'Scanning...' : 'Scan Repository' }}
-          </button>
-        </div>
-        <p v-if="scanError" class="mt-3 text-red-400 text-sm flex items-center gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10"></circle>
-            <line x1="12" y1="8" x2="12" y2="12"></line>
-            <line x1="12" y1="16" x2="12.01" y2="16"></line>
-          </svg>
-          {{ scanError }}
-        </p>
-      </div>
-
-      <!-- Main Content Area -->
-      <div v-if="fileStructure.length > 0" class="flex gap-6 h-[calc(100vh-220px)]">
-        <!-- File Structure Panel - Fixed Width -->
-        <div class="flex-shrink-0 w-80 h-full overflow-hidden">
-          <FileStructure :file-structure="fileStructure" />
-        </div>
-        
-        <!-- Chat Interface Panel - Flexible Width -->
-        <div class="flex-1 bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl shadow-2xl border border-gray-700 flex flex-col overflow-hidden">
-          <!-- Chat Messages Container -->
-          <div class="flex-1 p-6 overflow-y-auto custom-scrollbar" ref="messagesContainer">
-            <!-- Repository Info Card -->
-            <div v-if="repoStore.repoInfo" class="mb-6 animate-fade-in">
-              <div class="bg-gradient-to-br from-gray-700 to-gray-800 rounded-xl p-6 border border-gray-600 shadow-xl">
-                <div class="flex items-start gap-4">
-                  <div class="flex-shrink-0 w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/>
-                      <path d="M9 18c-4.51 2-5-2-7-2"/>
-                    </svg>
-                  </div>
-                  <div class="flex-1">
-                    <h3 class="text-xl font-bold mb-2 text-white">{{ repoStore.repoInfo.name }}</h3>
-                    <p class="text-gray-300 mb-2 text-sm leading-relaxed">{{ repoStore.repoInfo.description }}</p>
-                    <p class="text-gray-400 mb-3 text-sm leading-relaxed">{{ repoStore.repoInfo.summary }}</p>
-                    <a 
-                      :href="repositoryUrl" 
-                      target="_blank" 
-                      class="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 text-sm font-medium transition-colors"
-                    >
-                      <span>View on GitHub</span>
-                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-                        <polyline points="15 3 21 3 21 9"></polyline>
-                        <line x1="10" y1="14" x2="21" y2="3"></line>
-                      </svg>
-                    </a>
-                  </div>
-                </div>
-                
-                <!-- AI-Powered Actions -->
-                <div class="mt-4 pt-4 border-t border-gray-600">
-                  <p class="text-sm text-gray-400 mb-3 font-medium">🤖 AI-Powered Analysis:</p>
-                  <div class="grid grid-cols-2 gap-2">
-                    <button
-                      @click="repoStore.runSecurityScan()"
-                      :disabled="chatLoading"
-                      class="px-3 py-2 bg-red-600/20 hover:bg-red-600/30 border border-red-500/50 rounded-lg text-sm text-red-300 transition-all disabled:opacity-50"
-                    >
-                      🔒 Security Scan
-                    </button>
-                    <button
-                      @click="repoStore.runCodeReview()"
-                      :disabled="chatLoading"
-                      class="px-3 py-2 bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/50 rounded-lg text-sm text-blue-300 transition-all disabled:opacity-50"
-                    >
-                      📊 Code Review
-                    </button>
-                    <button
-                      @click="repoStore.generateTests()"
-                      :disabled="chatLoading"
-                      class="px-3 py-2 bg-green-600/20 hover:bg-green-600/30 border border-green-500/50 rounded-lg text-sm text-green-300 transition-all disabled:opacity-50"
-                    >
-                      🧪 Generate Tests
-                    </button>
-                    <button
-                      @click="repoStore.suggestRefactoring()"
-                      :disabled="chatLoading"
-                      class="px-3 py-2 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/50 rounded-lg text-sm text-purple-300 transition-all disabled:opacity-50"
-                    >
-                      🔧 Refactor Tips
-                    </button>
-                  </div>
-                </div>
-              </div>
+  <div class="min-h-screen bg-[#0d1117]">
+    <!-- Top Navigation Bar -->
+    <nav class="bg-[#161b22] border-b border-[#30363d] shadow-sm sticky top-0 z-50">
+      <div class="container mx-auto px-6 py-4">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 bg-[#238636] rounded-lg flex items-center justify-center">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+              </svg>
             </div>
-            
-            <!-- Chat Messages -->
-            <div v-for="message in messages" :key="message.id" 
-                 class="mb-4 animate-fade-in"
-                 :class="message.role === 'user' ? 'flex justify-end' : 'flex justify-start'"
-            >
-              <div
-                :class="[
-                  'max-w-[85%] rounded-xl p-4 shadow-lg',
-                  message.role === 'user'
-                    ? 'bg-gradient-to-br from-blue-600 to-blue-700 text-white'
-                    : 'bg-gradient-to-br from-gray-700 to-gray-800 text-gray-100 border border-gray-600'
-                ]"
-              >
-                <MarkdownRenderer v-if="message.role === 'assistant'" :content="message.content" />
-                <div v-else class="whitespace-pre-wrap break-words">{{ message.content }}</div>
-                <CodeBlock 
-                  v-if="message.fileContent"
-                  :content="message.fileContent.content"
-                  :fileName="message.fileContent.fileName"
-                  class="mt-4"
-                />
-              </div>
-            </div>
-            
-            <!-- Loading Indicator -->
-            <div v-if="chatLoading && messages.length > 0" class="flex justify-start mb-4 animate-fade-in">
-              <div class="bg-gradient-to-br from-gray-700 to-gray-800 rounded-xl p-4 border border-gray-600 shadow-lg">
-                <div class="flex space-x-2">
-                  <div class="w-2.5 h-2.5 rounded-full bg-blue-400 animate-bounce"></div>
-                  <div class="w-2.5 h-2.5 rounded-full bg-blue-400 animate-bounce" style="animation-delay: 0.2s"></div>
-                  <div class="w-2.5 h-2.5 rounded-full bg-blue-400 animate-bounce" style="animation-delay: 0.4s"></div>
-                </div>
-              </div>
+            <div>
+              <h1 class="text-xl font-bold text-[#c9d1d9]">GitPA 2.0</h1>
+              <p class="text-xs text-[#8b949e]">AI-Powered Repository Analysis</p>
             </div>
           </div>
           
-          <!-- Query Input Area -->
-          <div class="p-5 border-t border-gray-700 bg-gray-800/50 backdrop-blur">
-            <form @submit.prevent="sendQuery" class="flex gap-3">
-              <input
-                v-model="query"
-                type="text"
-                placeholder="Ask a question about the repository..."
-                class="flex-1 px-5 py-3 bg-gray-700 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 border border-gray-600 transition-all placeholder-gray-400"
-                :disabled="chatLoading"
-              />
-              <button
-                type="submit"
-                class="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg hover:from-blue-700 hover:to-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-medium shadow-lg hover:shadow-xl transform hover:scale-105 active:scale-95 flex items-center gap-2"
-                :disabled="chatLoading || !query.trim()"
-              >
-                <span>Send</span>
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <line x1="22" y1="2" x2="11" y2="13"></line>
-                  <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+          <!-- Stats Display (when repo is scanned) -->
+          <div v-if="fileStructure.length > 0" class="hidden md:flex items-center space-x-6 text-sm">
+            <div class="flex items-center space-x-2">
+              <div class="w-2 h-2 rounded-full bg-[#3fb950]"></div>
+              <span class="text-[#8b949e]">Connected</span>
+            </div>
+            <div class="text-[#30363d]">|</div>
+            <div class="text-[#8b949e]">
+              <span class="font-semibold text-[#c9d1d9]">{{ fileStructure.length }}</span> items scanned
+            </div>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <main class="container mx-auto px-6 py-8">
+      <!-- Repository Input Section -->
+      <div class="mb-8 max-w-4xl mx-auto">
+        <div class="bg-[#161b22] rounded-xl shadow-sm border border-[#30363d] p-6">
+          <label class="block text-sm font-semibold text-[#c9d1d9] mb-3">Repository URL</label>
+          <div class="flex gap-3">
+            <div class="flex-1 relative">
+              <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[#8b949e]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
                 </svg>
-              </button>
-            </form>
+              </div>
+              <input
+                v-model="repositoryUrl"
+                type="text"
+                placeholder="https://github.com/username/repository"
+                class="w-full pl-12 pr-4 py-3 bg-[#0d1117] text-[#c9d1d9] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1f6feb] border border-[#30363d] transition-all placeholder-[#8b949e]"
+              />
+            </div>
+            <button
+              @click="scanRepository"
+              :disabled="scanning"
+              class="px-6 py-3 bg-[#238636] text-white rounded-lg hover:bg-[#2ea043] disabled:opacity-50 disabled:cursor-not-allowed transition-all font-semibold shadow-sm hover:shadow-md flex items-center space-x-2"
+            >
+              <svg v-if="!scanning" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <div v-else class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+              <span>{{ scanning ? 'Analyzing...' : 'Analyze' }}</span>
+            </button>
+          </div>
+          <p v-if="scanError" class="mt-3 text-[#f85149] text-sm flex items-center space-x-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>{{ scanError }}</span>
+          </p>
+        </div>
+      </div>
+
+      <!-- Main Content Grid -->
+      <div v-if="fileStructure.length > 0" class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <!-- Left Sidebar - File Structure -->
+        <div class="lg:col-span-3">
+          <div class="bg-[#161b22] rounded-xl shadow-sm border border-[#30363d] overflow-hidden sticky top-24">
+            <div class="bg-[#0d1117] px-5 py-4 border-b border-[#30363d]">
+              <h2 class="font-semibold text-[#c9d1d9] flex items-center space-x-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[#8b949e]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                </svg>
+                <span>File Structure</span>
+              </h2>
+            </div>
+            <div class="max-h-[calc(100vh-200px)] overflow-y-auto">
+              <FileStructure :file-structure="fileStructure" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Main Content Area -->
+        <div class="lg:col-span-9 space-y-6">
+          <!-- Repository Info Card -->
+          <div v-if="repoStore.repoInfo" class="bg-[#161b22] rounded-xl shadow-sm border border-[#30363d] overflow-hidden">
+            <div class="p-6">
+              <div class="flex items-start space-x-4">
+                <div class="flex-shrink-0">
+                  <div class="w-16 h-16 bg-[#21262d] rounded-xl flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-[#58a6ff]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                    </svg>
+                  </div>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <h2 class="text-2xl font-bold text-[#c9d1d9] mb-2">{{ repoStore.repoInfo.name }}</h2>
+                  <p class="text-[#8b949e] mb-3 leading-relaxed">{{ repoStore.repoInfo.description }}</p>
+                  <p class="text-sm text-[#8b949e] mb-4">{{ repoStore.repoInfo.summary }}</p>
+                  <a 
+                    :href="repositoryUrl" 
+                    target="_blank" 
+                    class="inline-flex items-center space-x-2 text-[#58a6ff] hover:text-[#79c0ff] text-sm font-medium transition-colors"
+                  >
+                    <span>View Repository</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                  </a>
+                </div>
+              </div>
+            </div>
+            
+            <!-- AI Actions Grid -->
+            <div class="bg-[#0d1117] px-6 py-5 border-t border-[#30363d]">
+              <h3 class="text-sm font-semibold text-[#c9d1d9] mb-4 flex items-center space-x-2">
+                <span class="text-[#58a6ff]">⚡</span>
+                <span>AI-Powered Analysis Tools</span>
+              </h3>
+              <div class="grid grid-cols-2 gap-3">
+                <button
+                  @click="repoStore.runSecurityScan()"
+                  :disabled="chatLoading"
+                  class="group px-4 py-3 bg-[#21262d] hover:bg-[#30363d] border-2 border-[#30363d] hover:border-[#f85149] rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 bg-[#1c2128] rounded-lg flex items-center justify-center group-hover:bg-[#2d1517] transition-colors">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[#f85149]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                      </svg>
+                    </div>
+                    <div class="text-left flex-1">
+                      <div class="font-semibold text-[#c9d1d9] text-sm">Security Scan</div>
+                      <div class="text-xs text-[#8b949e]">Find vulnerabilities</div>
+                    </div>
+                  </div>
+                </button>
+
+                <button
+                  @click="repoStore.runCodeReview()"
+                  :disabled="chatLoading"
+                  class="group px-4 py-3 bg-[#21262d] hover:bg-[#30363d] border-2 border-[#30363d] hover:border-[#58a6ff] rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 bg-[#1c2128] rounded-lg flex items-center justify-center group-hover:bg-[#0c2d6b] transition-colors">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[#58a6ff]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                      </svg>
+                    </div>
+                    <div class="text-left flex-1">
+                      <div class="font-semibold text-[#c9d1d9] text-sm">Code Review</div>
+                      <div class="text-xs text-[#8b949e]">Quality analysis</div>
+                    </div>
+                  </div>
+                </button>
+
+                <button
+                  @click="repoStore.generateTests()"
+                  :disabled="chatLoading"
+                  class="group px-4 py-3 bg-[#21262d] hover:bg-[#30363d] border-2 border-[#30363d] hover:border-[#3fb950] rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 bg-[#1c2128] rounded-lg flex items-center justify-center group-hover:bg-[#0f2e1c] transition-colors">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[#3fb950]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <div class="text-left flex-1">
+                      <div class="font-semibold text-[#c9d1d9] text-sm">Generate Tests</div>
+                      <div class="text-xs text-[#8b949e]">Auto test creation</div>
+                    </div>
+                  </div>
+                </button>
+
+                <button
+                  @click="repoStore.suggestRefactoring()"
+                  :disabled="chatLoading"
+                  class="group px-4 py-3 bg-[#21262d] hover:bg-[#30363d] border-2 border-[#30363d] hover:border-[#a371f7] rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 bg-[#1c2128] rounded-lg flex items-center justify-center group-hover:bg-[#271741] transition-colors">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[#a371f7]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z" />
+                      </svg>
+                    </div>
+                    <div class="text-left flex-1">
+                      <div class="font-semibold text-[#c9d1d9] text-sm">Refactor Tips</div>
+                      <div class="text-xs text-[#8b949e]">Code improvements</div>
+                    </div>
+                  </div>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Chat Interface Card -->
+          <div class="bg-[#161b22] rounded-xl shadow-sm border border-[#30363d] overflow-hidden">
+            <div class="bg-[#0d1117] px-5 py-4 border-b border-[#30363d]">
+              <h2 class="font-semibold text-[#c9d1d9] flex items-center space-x-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[#8b949e]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+                <span>AI Assistant</span>
+              </h2>
+            </div>
+
+            <!-- Messages Container -->
+            <div class="h-[500px] overflow-y-auto p-6 space-y-4 bg-[#0d1117]" ref="messagesContainer">
+              <!-- Welcome Message -->
+              <div v-if="messages.length === 0" class="flex flex-col items-center justify-center h-full text-center">
+                <div class="w-16 h-16 bg-[#21262d] rounded-full flex items-center justify-center mb-4">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-[#58a6ff]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                </div>
+                <h3 class="text-lg font-semibold text-[#c9d1d9] mb-2">Ask me anything</h3>
+                <p class="text-sm text-[#8b949e] max-w-md">I can help you understand the code, explain functions, find bugs, and suggest improvements.</p>
+              </div>
+
+              <!-- Chat Messages -->
+              <div v-for="message in messages" :key="message.id" 
+                   :class="message.role === 'user' ? 'flex justify-end' : 'flex justify-start'"
+              >
+                <div
+                  :class="[
+                    'max-w-[85%] rounded-xl shadow-sm',
+                    message.role === 'user'
+                      ? 'bg-[#1f6feb] text-white px-5 py-3'
+                      : 'bg-[#161b22] border border-[#30363d] px-5 py-4'
+                  ]"
+                >
+                  <MarkdownRenderer v-if="message.role === 'assistant'" :content="message.content" />
+                  <div v-else class="whitespace-pre-wrap break-words font-medium">{{ message.content }}</div>
+                  <CodeBlock 
+                    v-if="message.fileContent"
+                    :content="message.fileContent.content"
+                    :fileName="message.fileContent.fileName"
+                    class="mt-4"
+                  />
+                </div>
+              </div>
+              
+              <!-- Loading Indicator -->
+              <div v-if="chatLoading && messages.length > 0" class="flex justify-start">
+                <div class="bg-[#161b22] border border-[#30363d] rounded-xl px-5 py-4 shadow-sm">
+                  <div class="flex space-x-2">
+                    <div class="w-2 h-2 rounded-full bg-[#58a6ff] animate-bounce"></div>
+                    <div class="w-2 h-2 rounded-full bg-[#58a6ff] animate-bounce" style="animation-delay: 0.2s"></div>
+                    <div class="w-2 h-2 rounded-full bg-[#58a6ff] animate-bounce" style="animation-delay: 0.4s"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Input Area -->
+            <div class="p-5 bg-[#161b22] border-t border-[#30363d]">
+              <form @submit.prevent="sendQuery" class="flex space-x-3">
+                <input
+                  v-model="query"
+                  type="text"
+                  placeholder="Type your question here..."
+                  class="flex-1 px-4 py-3 bg-[#0d1117] text-[#c9d1d9] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1f6feb] border border-[#30363d] transition-all placeholder-[#8b949e]"
+                  :disabled="chatLoading"
+                />
+                <button
+                  type="submit"
+                  class="px-6 py-3 bg-[#238636] text-white rounded-lg hover:bg-[#2ea043] disabled:opacity-50 disabled:cursor-not-allowed transition-all font-semibold shadow-sm hover:shadow-md flex items-center space-x-2"
+                  :disabled="chatLoading || !query.trim()"
+                >
+                  <span>Send</span>
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                  </svg>
+                </button>
+              </form>
+            </div>
           </div>
         </div>
       </div>
 
       <!-- Empty State -->
-      <div v-else-if="!scanning" class="flex flex-col items-center justify-center py-20 text-gray-500">
-        <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="mb-4 opacity-50">
-          <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/>
-          <path d="M9 18c-4.51 2-5-2-7-2"/>
-        </svg>
-        <p class="text-lg">Enter a GitHub repository URL to get started</p>
+      <div v-else-if="!scanning" class="flex flex-col items-center justify-center py-20">
+        <div class="w-24 h-24 bg-[#21262d] rounded-full flex items-center justify-center mb-6">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-[#8b949e]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+          </svg>
+        </div>
+        <h2 class="text-2xl font-bold text-[#c9d1d9] mb-2">Start Analyzing</h2>
+        <p class="text-[#8b949e] text-center max-w-md">Enter a GitHub repository URL above to begin AI-powered code analysis</p>
       </div>
     </main>
+
+    <!-- Footer -->
+    <footer class="mt-16 py-8 border-t border-[#30363d] bg-[#161b22]">
+      <div class="container mx-auto px-6 text-center">
+        <p class="text-sm text-[#8b949e]">Powered by AI • Built with Vue 3 & Tailwind CSS</p>
+      </div>
+    </footer>
   </div>
 </template>
 
@@ -202,7 +326,6 @@ const { fileStructure, loading: scanning, error: scanError } = storeToRefs(repos
 // Repo store for chat functionality
 const repoStore = useRepoStore();
 const query = ref('');
-// removed `chatError` because it was declared but never read (TS6133)
 const { messages, isLoading: chatLoading } = storeToRefs(repoStore);
 
 const messagesContainer = ref<HTMLElement | null>(null);
@@ -242,42 +365,31 @@ const sendQuery = async () => {
 </script>
 
 <style scoped>
-/* Custom Scrollbar */
-.custom-scrollbar::-webkit-scrollbar {
-  width: 10px;
+/* Smooth scrolling */
+.overflow-y-auto {
+  scrollbar-width: thin;
+  scrollbar-color: #30363d #0d1117;
 }
 
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: #1f2937;
-  border-radius: 5px;
+.overflow-y-auto::-webkit-scrollbar {
+  width: 8px;
 }
 
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: linear-gradient(to bottom, #4b5563, #374151);
-  border-radius: 5px;
+.overflow-y-auto::-webkit-scrollbar-track {
+  background: #0d1117;
+  border-radius: 4px;
 }
 
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(to bottom, #6b7280, #4b5563);
+.overflow-y-auto::-webkit-scrollbar-thumb {
+  background: #30363d;
+  border-radius: 4px;
 }
 
-/* Fade-in animation */
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.overflow-y-auto::-webkit-scrollbar-thumb:hover {
+  background: #484f58;
 }
 
-.animate-fade-in {
-  animation: fadeIn 0.3s ease-out;
-}
-
-/* Bounce animation for loading dots */
+/* Loading animation */
 @keyframes bounce {
   0%, 100% {
     transform: translateY(0);
@@ -289,5 +401,16 @@ const sendQuery = async () => {
 
 .animate-bounce {
   animation: bounce 1s infinite;
+}
+
+/* Spin animation */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
 }
 </style>

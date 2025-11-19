@@ -1,5 +1,4 @@
 import axios from 'axios';
-import OpenAI from 'openai';
 import { extractRepoInfo, getGitHubHeaders } from '../utils/github';
 import { GITHUB_TOKEN } from '../config';
 import { fetchRepoContents } from '../routes/repo';
@@ -7,12 +6,8 @@ import { fileStore } from '../services/fileStore';
 import { getAIResponse } from '../services/openai';
 
 // Debug logging for API key
-const apiKey = process.env.OPENAI_API_KEY;
-console.log('OpenAI API Key (masked):', apiKey ? `${apiKey.substring(0, 7)}...${apiKey.substring(apiKey.length - 4)}` : 'Not set');
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const apiKey = process.env.HUGGINGFACE_API_KEY;
+console.log('HuggingFace API Key (masked):', apiKey ? `${apiKey.substring(0, 7)}...${apiKey.substring(apiKey.length - 4)}` : 'Not set');
 
 /**
  * Scans a GitHub repository and returns its summary

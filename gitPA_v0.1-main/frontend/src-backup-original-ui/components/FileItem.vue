@@ -121,10 +121,10 @@ const isTextFile = (filename: string): boolean => {
 .item-header {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
+  gap: 8px;
+  padding: 6px 8px;
   border-radius: 6px;
-  transition: all 0.1s ease-in-out;
+  transition: all 0.15s ease-in-out;
 }
 
 .item-header.is-dir {
@@ -132,11 +132,11 @@ const isTextFile = (filename: string): boolean => {
 }
 
 .item-header.is-dir:hover {
-  background-color: #1c2128;
+  background-color: rgba(55, 65, 81, 0.6);
 }
 
 .item-header:not(.is-dir):hover {
-  background-color: rgba(48, 54, 61, 0.3);
+  background-color: rgba(55, 65, 81, 0.4);
 }
 
 .icon {
@@ -147,7 +147,7 @@ const isTextFile = (filename: string): boolean => {
 }
 
 .arrow-icon {
-  color: #8b949e;
+  color: #9ca3af;
   transition: transform 0.2s ease-in-out;
   width: 16px;
 }
@@ -157,31 +157,31 @@ const isTextFile = (filename: string): boolean => {
 }
 
 .file-icon {
-  color: #58a6ff;
+  color: #60a5fa;
   width: 16px;
 }
 
 .item-header:not(.is-dir) .file-icon {
-  color: #8b949e;
+  color: #9ca3af;
 }
 
 .item-header:hover .file-icon {
-  color: #c9d1d9;
+  color: #d1d5db;
 }
 
 .item-name {
   font-size: 0.875rem;
-  color: #8b949e;
-  transition: color 0.1s ease-in-out;
+  color: #d1d5db;
+  transition: color 0.15s ease-in-out;
 }
 
 .item-name.is-dir {
-  font-weight: 500;
-  color: #c9d1d9;
+  font-weight: 600;
+  color: #e5e7eb;
 }
 
 .item-header:hover .item-name {
-  color: #c9d1d9;
+  color: #ffffff;
 }
 
 .children {
@@ -193,6 +193,6 @@ const isTextFile = (filename: string): boolean => {
   top: 0;
   bottom: 0;
   width: 1px;
-  background: linear-gradient(to bottom, #30363d, transparent);
+  background: linear-gradient(to bottom, #4b5563, transparent);
 }
 </style>

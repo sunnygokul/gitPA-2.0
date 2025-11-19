@@ -157,7 +157,7 @@ async function getAICodeReview(files: any[], metrics: CodeMetrics, dependencies:
     .join('\n\n');
 
   const response = await fetch(
-    'https://api-inference.huggingface.co/models/Qwen/Qwen2.5-7B-Instruct/v1/chat/completions',
+    'https://api-inference.huggingface.co/models/Qwen/Qwen2.5-7B-Instruct',
     {
       method: 'POST',
       headers: {
@@ -165,19 +165,12 @@ async function getAICodeReview(files: any[], metrics: CodeMetrics, dependencies:
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'Qwen/Qwen2.5-7B-Instruct',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are an expert software architect.'
-          },
-          {
-            role: 'user',
-            content: `Review ${repoName}:\n\nMETRICS: ${metrics.totalFiles} files, ${metrics.totalLines} lines\n\nKEY FILES:\n${keyFiles}\n\nAnalyze: architecture, quality, security, performance, technical debt. Provide actionable recommendations.`
-          }
-        ],
-        max_tokens: 2048,
-        temperature: 0.4,
+        inputs: `You are a senior code reviewer. Review ${repoName}:\n\nMETRICS: ${metrics.totalFiles} files, ${metrics.totalLines} lines\n\nKEY FILES:\n${keyFiles}\n\nAnalyze: architecture, quality, security, performance, technical debt. Provide actionable recommendations.`,
+        parameters: {
+          max_new_tokens: 2048,
+          temperature: 0.4,
+          return_full_text: false,
+        }
       }),
     }
   );
@@ -188,7 +181,7 @@ async function getAICodeReview(files: any[], metrics: CodeMetrics, dependencies:
   }
 
   const data = await response.json();
-  return data.choices[0].message.content;
+  return data[0]?.generated_text || data.generated_text || JSON.stringify(data);
 }
 
 async function OLD_getAICodeReview_DELETE_THIS(files: any[], metrics: CodeMetrics, dependencies: DependencyInfo[], repoName: string) {

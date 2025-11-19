@@ -84,7 +84,7 @@ async function getAIResponse(query: string, context: string, repoName: string) {
   const apiKey = process.env.HUGGINGFACE_API_KEY || '';
   
   const response = await fetch(
-    'https://api-inference.huggingface.co/models/Qwen/Qwen2.5-7B-Instruct/v1/chat/completions',
+    'https://api-inference.huggingface.co/models/Qwen/Qwen2.5-7B-Instruct',
     {
       method: 'POST',
       headers: {
@@ -92,19 +92,12 @@ async function getAIResponse(query: string, context: string, repoName: string) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'Qwen/Qwen2.5-7B-Instruct',
-        messages: [
-          {
-            role: 'system',
-            content: `You are an expert code analysis AI analyzing: ${repoName}. ONLY answer based on provided files. Cite specific files.`
-          },
-          {
-            role: 'user',
-            content: `REPOSITORY FILES:\n${context}\n\nQUESTION: ${query}\n\nAnalyze based ONLY on files above.`
-          }
-        ],
-        max_tokens: 2048,
-        temperature: 0.3,
+        inputs: `You are an expert code analysis AI analyzing: ${repoName}. ONLY answer based on provided files. Cite specific files.\n\nREPOSITORY FILES:\n${context}\n\nQUESTION: ${query}\n\nAnalyze based ONLY on files above.`,
+        parameters: {
+          max_new_tokens: 2048,
+          temperature: 0.3,
+          return_full_text: false,
+        }
       }),
     }
   );
@@ -115,7 +108,7 @@ async function getAIResponse(query: string, context: string, repoName: string) {
   }
 
   const data = await response.json();
-  return data.choices[0].message.content;
+  return data[0]?.generated_text || data.generated_text || JSON.stringify(data);
 }
 
 export default async function handler(req, res) {

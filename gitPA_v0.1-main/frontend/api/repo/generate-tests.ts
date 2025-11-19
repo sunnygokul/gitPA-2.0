@@ -64,7 +64,7 @@ async function generateTestsWithAI(file: any, repoName: string) {
   const framework = getTestFramework(file.language);
 
   const response = await fetch(
-    'https://api-inference.huggingface.co/models/Qwen/Qwen2.5-7B-Instruct/v1/chat/completions',
+    'https://api-inference.huggingface.co/models/Qwen/Qwen2.5-7B-Instruct',
     {
       method: 'POST',
       headers: {
@@ -72,19 +72,12 @@ async function generateTestsWithAI(file: any, repoName: string) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'Qwen/Qwen2.5-7B-Instruct',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are an expert test engineer.'
-          },
-          {
-            role: 'user',
-            content: `Generate ${framework} tests for:\n\nFILE: ${file.path}\n\`\`\`${file.language}\n${file.content}\n\`\`\`\n\nInclude: happy path, edge cases, error handling. Generate ONLY test code with imports.`
-          }
-        ],
-        max_tokens: 2048,
-        temperature: 0.4,
+        inputs: `You are an expert test engineer. Generate ${framework} tests for the following code:\n\nFILE: ${file.path}\n\`\`\`${file.language}\n${file.content}\n\`\`\`\n\nInclude: happy path, edge cases, error handling. Generate ONLY test code with imports.`,
+        parameters: {
+          max_new_tokens: 2048,
+          temperature: 0.4,
+          return_full_text: false,
+        }
       }),
     }
   );
@@ -95,7 +88,7 @@ async function generateTestsWithAI(file: any, repoName: string) {
   }
 
   const data = await response.json();
-  return data.choices[0].message.content;
+  return data[0]?.generated_text || data.generated_text || JSON.stringify(data);
 }
 
 export default async function handler(req, res) {

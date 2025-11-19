@@ -1,5 +1,7 @@
 // @ts-nocheck
 import axios from 'axios';
+import { ContextAggregator } from './_lib/context-aggregator';
+import { MockGenerator, CoverageAnalyzer } from './_lib/mock-generator';
 
 async function fetchRepoFiles(owner: string, repo: string, path = '', files = [], depth = 0) {
   if (depth > 10 || files.length >= 50) return files;
@@ -58,9 +60,23 @@ function getTestFramework(language: string): string {
   return frameworks[language] || 'appropriate testing framework';
 }
 
-async function generateTestsWithAI(file: any, repoName: string) {
+async function generateTestsWithAI(file: any, repoName: string, allFiles: RepoFile[]) {
   const apiKey = process.env.HUGGINGFACE_API_KEY || '';
   const framework = getTestFramework(file.language);
+
+  // Build context and analyze dependencies
+  const aggregator = new ContextAggregator();
+  await aggregator.buildContext(allFiles);
+  const fileContext = aggregator.getFileContext(file.path);
+
+  // Generate mocks for dependencies
+  const mockGen = new MockGenerator();
+  const mocks = mockGen.generateMocks(file, fileContext.dependencies);
+
+  // Build enhanced prompt with mock context
+  const mockSection = mocks.length > 0 
+    ? `\n\nDEPENDENCIES:\n${fileContext.dependencies.map(d => `- ${d.path}`).join('\n')}\n\nMOCK SETUP:\n${mocks.map(m => m.implementation).join('\n\n')}`
+    : '';
 
   const response = await fetch(
     'https://router.huggingface.co/v1/chat/completions',
@@ -75,11 +91,11 @@ async function generateTestsWithAI(file: any, repoName: string) {
         messages: [
           {
             role: 'system',
-            content: 'You are an expert test engineer.'
+            content: 'You are an expert test engineer. Generate comprehensive tests with proper mocking for external dependencies.'
           },
           {
             role: 'user',
-            content: `Generate ${framework} tests for:\n\nFILE: ${file.path}\n\`\`\`${file.language}\n${file.content}\n\`\`\`\n\nInclude: happy path, edge cases, error handling. Generate ONLY test code with imports.`
+            content: `Generate ${framework} tests for:\n\nFILE: ${file.path}\n\`\`\`${file.language}\n${file.content}\n\`\`\`${mockSection}\n\nInclude: happy path, edge cases, error handling. Use the provided mocks for dependencies. Generate ONLY test code with imports.`
           }
         ],
         max_tokens: 2048,
@@ -94,7 +110,14 @@ async function generateTestsWithAI(file: any, repoName: string) {
   }
 
   const data = await response.json();
-  return data.choices[0].message.content;
+  const aiGeneratedTests = data.choices[0].message.content;
+
+  // Combine mocks with generated tests
+  if (mocks.length > 0) {
+    return `// Auto-generated mocks for dependencies\n${mocks.map(m => m.implementation).join('\n\n')}\n\n${aiGeneratedTests}`;
+  }
+
+  return aiGeneratedTests;
 }
 
 export default async function handler(req, res) {
@@ -139,7 +162,7 @@ export default async function handler(req, res) {
     const testResults = [];
     for (const file of targetFiles) {
       try {
-        const testCode = await generateTestsWithAI(file, repoName);
+        const testCode = await generateTestsWithAI(file, repoName, files);
         const testFileName = generateTestFileName(file.name, file.language);
         
         testResults.push({

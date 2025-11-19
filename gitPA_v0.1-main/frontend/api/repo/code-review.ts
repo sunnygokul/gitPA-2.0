@@ -1,5 +1,6 @@
 // @ts-nocheck
 import axios from 'axios';
+import { ContextAggregator } from './_lib/context-aggregator';
 
 interface CodeMetrics {
   totalFiles: number;
@@ -144,8 +145,11 @@ function analyzeDependencies(files: any[]): DependencyInfo[] {
   return dependencies;
 }
 
-async function getAICodeReview(files: any[], metrics: CodeMetrics, dependencies: DependencyInfo[], repoName: string) {
+async function getAICodeReview(files: any[], metrics: CodeMetrics, dependencies: DependencyInfo[], repoName: string, aggregator: ContextAggregator) {
   const apiKey = process.env.HUGGINGFACE_API_KEY || '';
+
+  // Get architecture insights
+  const archInsights = aggregator.getArchitectureInsights();
 
   // Sample key files for review
   const keyFiles = files
@@ -153,6 +157,12 @@ async function getAICodeReview(files: any[], metrics: CodeMetrics, dependencies:
     .slice(0, 8)
     .map(f => `File: ${f.path}\n\`\`\`\n${f.content.substring(0, 3000)}\n\`\`\``)
     .join('\n\n');
+
+  // Build architecture context
+  const archContext = `ARCHITECTURE PATTERN: ${archInsights.pattern}
+LAYERS: ${archInsights.layers.join(', ')}
+MAIN MODULES: ${archInsights.modules.slice(0, 5).join(', ')}
+CIRCULAR DEPENDENCIES: ${archInsights.circularDeps.length > 0 ? archInsights.circularDeps.join(' → ') : 'None detected'}`;
 
   const response = await fetch(
     'https://router.huggingface.co/v1/chat/completions',
@@ -167,11 +177,11 @@ async function getAICodeReview(files: any[], metrics: CodeMetrics, dependencies:
         messages: [
           {
             role: 'system',
-            content: 'You are an expert software architect.'
+            content: 'You are an expert software architect with deep knowledge of design patterns, SOLID principles, and best practices.'
           },
           {
             role: 'user',
-            content: `Review ${repoName}:\n\nMETRICS: ${metrics.totalFiles} files, ${metrics.totalLines} lines\n\nKEY FILES:\n${keyFiles}\n\nAnalyze: architecture, quality, security, performance, technical debt. Provide actionable recommendations.`
+            content: `Review ${repoName}:\n\nMETRICS: ${metrics.totalFiles} files, ${metrics.totalLines} lines\n\n${archContext}\n\nKEY FILES:\n${keyFiles}\n\nAnalyze: architecture quality, design patterns, coupling/cohesion, security, performance, technical debt, code smells. Provide specific, actionable recommendations with file references.`
           }
         ],
         max_tokens: 2048,
@@ -216,11 +226,30 @@ export default async function handler(req, res) {
     const files = await fetchRepoFiles(owner, repo);
     console.log(`Analyzing ${files.length} files...`);
 
+    // Build context and analyze architecture
+    console.log('Building repository context...');
+    const aggregator = new ContextAggregator();
+    await aggregator.buildContext(files);
+
     const metrics = calculateMetrics(files);
     const dependencies = analyzeDependencies(files);
 
+    // Get architecture insights
+    const archInsights = aggregator.getArchitectureInsights();
+
+    // Analyze coupling for each file
+    const couplingAnalysis = files.slice(0, 20).map(f => {
+      const coupling = aggregator.graph.analyzeCoupling(f.path);
+      return {
+        file: f.path,
+        afferentCoupling: coupling.afferent,
+        efferentCoupling: coupling.efferent,
+        instability: coupling.instability
+      };
+    });
+
     console.log('Generating AI-powered code review...');
-    const aiReview = await getAICodeReview(files, metrics, dependencies, repoName);
+    const aiReview = await getAICodeReview(files, metrics, dependencies, repoName, aggregator);
 
     // Calculate quality scores
     const commentRatio = metrics.commentLines / metrics.codeLines;
@@ -232,7 +261,11 @@ export default async function handler(req, res) {
     const uniqueDeps = new Set(dependencies.flatMap(d => d.externalDependencies)).size;
     const dependencyScore = Math.max(0, 100 - uniqueDeps * 2);
 
-    const overallScore = Math.round((documentationScore + maintainabilityScore + dependencyScore) / 3);
+    // Architecture score based on patterns and circular dependencies
+    const hasCircularDeps = archInsights.circularDeps.length > 0;
+    const architectureScore = hasCircularDeps ? 60 : 90;
+
+    const overallScore = Math.round((documentationScore + maintainabilityScore + dependencyScore + architectureScore) / 4);
 
     res.json({
       status: 'success',
@@ -241,8 +274,16 @@ export default async function handler(req, res) {
       scores: {
         documentation: documentationScore,
         maintainability: maintainabilityScore,
-        dependencies: dependencyScore
+        dependencies: dependencyScore,
+        architecture: architectureScore
       },
+      architecture: {
+        pattern: archInsights.pattern,
+        layers: archInsights.layers,
+        modules: archInsights.modules.slice(0, 10),
+        circularDependencies: archInsights.circularDeps
+      },
+      coupling: couplingAnalysis,
       metrics,
       dependencies: dependencies.slice(0, 20), // Top 20 most connected files
       aiReview,

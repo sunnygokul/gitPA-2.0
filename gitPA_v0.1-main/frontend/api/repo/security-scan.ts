@@ -1,5 +1,7 @@
 // @ts-nocheck
 import axios from 'axios';
+import { ContextAggregator } from './_lib/context-aggregator';
+import { AdvancedSecurityScanner } from './_lib/advanced-security';
 
 interface SecurityIssue {
   file: string;
@@ -206,23 +208,39 @@ export default async function handler(req, res) {
     const files = await fetchRepoFiles(owner, repo);
     console.log(`Scanning ${files.length} files for security issues...`);
 
+    // Run both basic pattern-based scan and advanced cross-file analysis
     const allIssues: SecurityIssue[] = [];
     for (const file of files) {
       const fileIssues = scanFile(file);
       allIssues.push(...fileIssues);
     }
 
+    // Advanced cross-file security analysis
+    const aggregator = new ContextAggregator();
+    await aggregator.analyzeRepository(files);
+    
+    const advancedScanner = new AdvancedSecurityScanner(aggregator);
+    const advancedResults = await advancedScanner.scan();
+    
+    // Merge results (remove duplicates)
+    const combinedIssues = [...allIssues];
+    advancedResults.vulnerabilities.forEach(vuln => {
+      const isDuplicate = allIssues.some(issue =>
+        issue.file === vuln.file &&
+        issue.line === vuln.line &&
+        issue.type === vuln.type
+      );
+      if (!isDuplicate) {
+        combinedIssues.push(vuln);
+      }
+    });
+
     // Filter: Only show CRITICAL and HIGH severity issues (ignore noise)
-    const filteredIssues = allIssues.filter(i => i.severity === 'CRITICAL' || i.severity === 'HIGH');
+    const filteredIssues = combinedIssues.filter(i => i.severity === 'CRITICAL' || i.severity === 'HIGH');
     const summary = categorizeIssues(filteredIssues);
 
-    // Calculate security score (0-100)
-    const securityScore = Math.max(0, 100 - (
-      summary.stats.critical * 20 +
-      summary.stats.high * 10 +
-      summary.stats.medium * 5 +
-      summary.stats.low * 1
-    ));
+    // Calculate security score (use advanced scanner's score)
+    const securityScore = advancedResults.score;
 
     res.json({
       status: 'success',
@@ -234,7 +252,11 @@ export default async function handler(req, res) {
         return severityOrder[a.severity] - severityOrder[b.severity];
       }),
       filesScanned: files.length,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      advancedAnalysis: {
+        crossFileVulnerabilities: advancedResults.vulnerabilities.filter(v => v.dataFlow && v.dataFlow.length > 1).length,
+        architecturePatterns: aggregator.detectArchitecturePatterns().patterns
+      }
     });
 
   } catch (error) {

@@ -1,6 +1,13 @@
 // @ts-nocheck
 import axios from 'axios';
-import { ContextAggregator } from './_lib/context-aggregator';
+
+// Optional advanced features
+let ContextAggregator;
+try {
+  ContextAggregator = require('./_lib/context-aggregator').ContextAggregator;
+} catch (e) {
+  console.warn('Advanced refactoring features not available');
+}
 
 interface RefactoringSuggestion {
   file: string;
@@ -146,24 +153,13 @@ function calculateSimilarity(str1: string, str2: string): number {
   return (2 * commonTokens) / (tokens1.length + tokens2.length);
 }
 
-async function getAIRefactoringSuggestions(files: any[], repoName: string, aggregator: ContextAggregator) {
+async function getAIRefactoringSuggestions(files: any[], repoName: string) {
   const apiKey = process.env.HUGGINGFACE_API_KEY || '';
-
-  // Get architecture insights
-  const archInsights = aggregator.getArchitectureInsights();
 
   const codeContext = files
     .slice(0, 6)
     .map(f => `File: ${f.path}\n\`\`\`\n${f.content.substring(0, 5000)}\n\`\`\``)
     .join('\n\n');
-
-  // Build architecture context
-  const archContext = `ARCHITECTURE: ${archInsights.pattern}
-CIRCULAR DEPENDENCIES: ${archInsights.circularDeps.length > 0 ? archInsights.circularDeps.join(' → ') : 'None'}
-HIGH COUPLING FILES: ${files.map(f => {
-    const coupling = aggregator.graph.analyzeCoupling(f.path);
-    return { path: f.path, instability: coupling.instability };
-  }).sort((a, b) => b.instability - a.instability).slice(0, 5).map(f => `${f.path} (instability: ${f.instability.toFixed(2)})`).join(', ')}`;
 
   const response = await fetch(
     'https://router.huggingface.co/v1/chat/completions',
@@ -182,7 +178,7 @@ HIGH COUPLING FILES: ${files.map(f => {
           },
           {
             role: 'user',
-            content: `Refactor ${repoName}:\n\n${archContext}\n\n${codeContext}\n\nProvide 5-10 specific suggestions with: Type, Severity, File Location, Problem, Solution, Benefits. Focus on: cross-file duplication, circular dependencies, high coupling, architecture improvements, complexity, performance, security.`
+            content: `Refactor ${repoName}:\n\n${codeContext}\n\nProvide 5-10 suggestions with: Type, Severity, Location, Problem, Solution, Benefits. Focus on: duplication, complexity, performance, security.`
           }
         ],
         max_tokens: 2048,
@@ -224,57 +220,66 @@ export default async function handler(req, res) {
     const files = await fetchRepoFiles(owner, repo);
     console.log(`Analyzing ${files.length} files for code smells...`);
 
-    // Build context and analyze cross-file patterns
-    console.log('Building repository context...');
-    const aggregator = new ContextAggregator();
-    await aggregator.buildContext(files);
-
     const automaticSuggestions = detectCodeSmells(files);
     console.log(`Found ${automaticSuggestions.length} automatic suggestions`);
 
-    // Detect cross-file duplication
-    const crossFileDuplication = [];
-    const functionsByContent = new Map();
-    
-    for (const file of files) {
-      const fileContext = aggregator.getFileContext(file.path);
-      for (const func of fileContext.symbols.filter(s => s.type === 'function')) {
-        const funcContent = func.name; // Simplified - in production, compare actual AST
-        if (functionsByContent.has(funcContent)) {
-          const existing = functionsByContent.get(funcContent);
-          crossFileDuplication.push({
-            file: file.path,
-            type: 'Remove Duplication',
-            severity: 'High',
-            title: `Duplicate function found across files`,
-            description: `Function similar to ${existing.file}:${func.name}`,
-            before: `${file.path}: ${func.name}`,
-            after: 'Extract to shared utility module',
-            benefits: ['DRY principle', 'Single source of truth', 'Reduced maintenance']
-          });
-        } else {
-          functionsByContent.set(funcContent, { file: file.path, name: func.name });
+    let crossFileDuplication = [];
+    let circularDepSuggestions = [];
+    let archInsights = { pattern: 'Unknown', circularDeps: [] };
+
+    // Try advanced analysis if available
+    if (ContextAggregator) {
+      try {
+        console.log('Building repository context...');
+        const aggregator = new ContextAggregator();
+        await aggregator.buildContext(files);
+
+        // Detect cross-file duplication
+        const functionsByContent = new Map();
+        
+        for (const file of files) {
+          const fileContext = aggregator.getFileContext(file.path);
+          for (const func of fileContext.symbols.filter(s => s.type === 'function')) {
+            const funcContent = func.name;
+            if (functionsByContent.has(funcContent)) {
+              const existing = functionsByContent.get(funcContent);
+              crossFileDuplication.push({
+                file: file.path,
+                type: 'Remove Duplication',
+                severity: 'High',
+                title: `Duplicate function found across files`,
+                description: `Function similar to ${existing.file}:${func.name}`,
+                before: `${file.path}: ${func.name}`,
+                after: 'Extract to shared utility module',
+                benefits: ['DRY principle', 'Single source of truth', 'Reduced maintenance']
+              });
+            } else {
+              functionsByContent.set(funcContent, { file: file.path, name: func.name });
+            }
+          }
         }
+
+        // Detect circular dependencies
+        archInsights = aggregator.getArchitectureInsights();
+        circularDepSuggestions = archInsights.circularDeps.map(cycle => ({
+          file: cycle.split(' → ')[0],
+          type: 'Simplify Logic',
+          severity: 'High',
+          title: 'Circular dependency detected',
+          description: `Circular import chain: ${cycle}`,
+          before: cycle,
+          after: 'Refactor to break cycle - consider dependency injection or interface extraction',
+          benefits: ['Better modularity', 'Easier testing', 'Clearer dependencies']
+        }));
+      } catch (advErr) {
+        console.warn('Advanced refactoring analysis failed:', advErr.message);
       }
     }
-
-    // Detect circular dependencies
-    const archInsights = aggregator.getArchitectureInsights();
-    const circularDepSuggestions = archInsights.circularDeps.map(cycle => ({
-      file: cycle.split(' → ')[0],
-      type: 'Simplify Logic',
-      severity: 'High',
-      title: 'Circular dependency detected',
-      description: `Circular import chain: ${cycle}`,
-      before: cycle,
-      after: 'Refactor to break cycle - consider dependency injection or interface extraction',
-      benefits: ['Better modularity', 'Easier testing', 'Clearer dependencies']
-    }));
 
     const allSuggestions = [...automaticSuggestions, ...crossFileDuplication, ...circularDepSuggestions];
 
     console.log('Getting AI-powered refactoring suggestions...');
-    const aiSuggestions = await getAIRefactoringSuggestions(files, repoName, aggregator);
+    const aiSuggestions = await getAIRefactoringSuggestions(files, repoName);
 
     const stats = {
       highPriority: allSuggestions.filter(s => s.severity === 'High').length,

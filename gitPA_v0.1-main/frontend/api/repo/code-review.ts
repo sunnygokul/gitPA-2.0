@@ -1,6 +1,13 @@
 // @ts-nocheck
 import axios from 'axios';
-import { ContextAggregator } from './_lib/context-aggregator';
+
+// Optional advanced features
+let ContextAggregator;
+try {
+  ContextAggregator = require('./_lib/context-aggregator').ContextAggregator;
+} catch (e) {
+  console.warn('Advanced code review features not available');
+}
 
 interface CodeMetrics {
   totalFiles: number;
@@ -145,24 +152,15 @@ function analyzeDependencies(files: any[]): DependencyInfo[] {
   return dependencies;
 }
 
-async function getAICodeReview(files: any[], metrics: CodeMetrics, dependencies: DependencyInfo[], repoName: string, aggregator: ContextAggregator) {
+async function getAICodeReview(files: any[], metrics: CodeMetrics, dependencies: DependencyInfo[], repoName: string) {
   const apiKey = process.env.HUGGINGFACE_API_KEY || '';
-
-  // Get architecture insights
-  const archInsights = aggregator.getArchitectureInsights();
-
+  
   // Sample key files for review
   const keyFiles = files
     .sort((a, b) => b.content.length - a.content.length)
     .slice(0, 8)
     .map(f => `File: ${f.path}\n\`\`\`\n${f.content.substring(0, 3000)}\n\`\`\``)
     .join('\n\n');
-
-  // Build architecture context
-  const archContext = `ARCHITECTURE PATTERN: ${archInsights.pattern}
-LAYERS: ${archInsights.layers.join(', ')}
-MAIN MODULES: ${archInsights.modules.slice(0, 5).join(', ')}
-CIRCULAR DEPENDENCIES: ${archInsights.circularDeps.length > 0 ? archInsights.circularDeps.join(' → ') : 'None detected'}`;
 
   const response = await fetch(
     'https://router.huggingface.co/v1/chat/completions',
@@ -181,7 +179,7 @@ CIRCULAR DEPENDENCIES: ${archInsights.circularDeps.length > 0 ? archInsights.cir
           },
           {
             role: 'user',
-            content: `Review ${repoName}:\n\nMETRICS: ${metrics.totalFiles} files, ${metrics.totalLines} lines\n\n${archContext}\n\nKEY FILES:\n${keyFiles}\n\nAnalyze: architecture quality, design patterns, coupling/cohesion, security, performance, technical debt, code smells. Provide specific, actionable recommendations with file references.`
+            content: `Review ${repoName}:\n\nMETRICS: ${metrics.totalFiles} files, ${metrics.totalLines} lines\n\nKEY FILES:\n${keyFiles}\n\nAnalyze: architecture, quality, security, performance, technical debt. Provide actionable recommendations.`
           }
         ],
         max_tokens: 2048,
@@ -226,30 +224,37 @@ export default async function handler(req, res) {
     const files = await fetchRepoFiles(owner, repo);
     console.log(`Analyzing ${files.length} files...`);
 
-    // Build context and analyze architecture
-    console.log('Building repository context...');
-    const aggregator = new ContextAggregator();
-    await aggregator.buildContext(files);
-
     const metrics = calculateMetrics(files);
     const dependencies = analyzeDependencies(files);
 
-    // Get architecture insights
-    const archInsights = aggregator.getArchitectureInsights();
+    let archInsights = { pattern: 'Unknown', circularDeps: [] };
+    let couplingAnalysis = [];
+    
+    // Try advanced analysis if available
+    if (ContextAggregator) {
+      try {
+        console.log('Building repository context...');
+        const aggregator = new ContextAggregator();
+        await aggregator.buildContext(files);
 
-    // Analyze coupling for each file
-    const couplingAnalysis = files.slice(0, 20).map(f => {
-      const coupling = aggregator.graph.analyzeCoupling(f.path);
-      return {
-        file: f.path,
-        afferentCoupling: coupling.afferent,
-        efferentCoupling: coupling.efferent,
-        instability: coupling.instability
-      };
-    });
+        archInsights = aggregator.getArchitectureInsights();
+
+        couplingAnalysis = files.slice(0, 20).map(f => {
+          const coupling = aggregator.graph.analyzeCoupling(f.path);
+          return {
+            file: f.path,
+            afferentCoupling: coupling.afferent,
+            efferentCoupling: coupling.efferent,
+            instability: coupling.instability
+          };
+        });
+      } catch (advErr) {
+        console.warn('Advanced code review analysis failed:', advErr.message);
+      }
+    }
 
     console.log('Generating AI-powered code review...');
-    const aiReview = await getAICodeReview(files, metrics, dependencies, repoName, aggregator);
+    const aiReview = await getAICodeReview(files, metrics, dependencies, repoName);
 
     // Calculate quality scores
     const commentRatio = metrics.commentLines / metrics.codeLines;

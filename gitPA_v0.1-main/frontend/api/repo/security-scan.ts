@@ -1,7 +1,14 @@
 // @ts-nocheck
 import axios from 'axios';
-import { ContextAggregator } from './_lib/context-aggregator';
-import { AdvancedSecurityScanner } from './_lib/advanced-security';
+
+// Optional advanced features - graceful fallback if not available
+let ContextAggregator, AdvancedSecurityScanner;
+try {
+  ContextAggregator = require('./_lib/context-aggregator').ContextAggregator;
+  AdvancedSecurityScanner = require('./_lib/advanced-security').AdvancedSecurityScanner;
+} catch (e) {
+  console.warn('Advanced security features not available, using basic patterns only');
+}
 
 interface SecurityIssue {
   file: string;
@@ -208,39 +215,62 @@ export default async function handler(req, res) {
     const files = await fetchRepoFiles(owner, repo);
     console.log(`Scanning ${files.length} files for security issues...`);
 
-    // Run both basic pattern-based scan and advanced cross-file analysis
+    // Run basic pattern-based scan
     const allIssues: SecurityIssue[] = [];
     for (const file of files) {
       const fileIssues = scanFile(file);
       allIssues.push(...fileIssues);
     }
 
-    // Advanced cross-file security analysis
-    const aggregator = new ContextAggregator();
-    await aggregator.analyzeRepository(files);
-    
-    const advancedScanner = new AdvancedSecurityScanner(aggregator);
-    const advancedResults = await advancedScanner.scan();
-    
-    // Merge results (remove duplicates)
-    const combinedIssues = [...allIssues];
-    advancedResults.vulnerabilities.forEach(vuln => {
-      const isDuplicate = allIssues.some(issue =>
-        issue.file === vuln.file &&
-        issue.line === vuln.line &&
-        issue.type === vuln.type
-      );
-      if (!isDuplicate) {
-        combinedIssues.push(vuln);
+    let combinedIssues = [...allIssues];
+    let securityScore = 75;
+    let advancedAnalysis = {};
+
+    // Try advanced cross-file security analysis if libraries available
+    if (ContextAggregator && AdvancedSecurityScanner) {
+      try {
+        console.log('Running advanced security analysis...');
+        const aggregator = new ContextAggregator();
+        await aggregator.buildContext(files);
+        
+        const advancedScanner = new AdvancedSecurityScanner();
+        const advancedResults = await advancedScanner.scanRepository(aggregator);
+        
+        // Merge results (remove duplicates)
+        advancedResults.forEach(vuln => {
+          const isDuplicate = allIssues.some(issue =>
+            issue.file === vuln.file &&
+            issue.line === vuln.line &&
+            issue.type === vuln.type
+          );
+          if (!isDuplicate) {
+            combinedIssues.push(vuln);
+          }
+        });
+
+        const archInsights = aggregator.getArchitectureInsights();
+        advancedAnalysis = {
+          crossFileVulnerabilities: advancedResults.filter(v => v.description && v.description.includes('cross-file')).length,
+          architecturePattern: archInsights.pattern
+        };
+        
+        // Recalculate score based on all findings
+        const criticalCount = combinedIssues.filter(i => i.severity === 'CRITICAL').length;
+        const highCount = combinedIssues.filter(i => i.severity === 'HIGH').length;
+        securityScore = Math.max(0, 100 - (criticalCount * 20) - (highCount * 10));
+      } catch (advErr) {
+        console.warn('Advanced security analysis failed, using basic scan:', advErr.message);
       }
-    });
+    } else {
+      console.log('Using basic security scan only');
+      const criticalCount = allIssues.filter(i => i.severity === 'CRITICAL').length;
+      const highCount = allIssues.filter(i => i.severity === 'HIGH').length;
+      securityScore = Math.max(0, 100 - (criticalCount * 20) - (highCount * 10));
+    }
 
     // Filter: Only show CRITICAL and HIGH severity issues (ignore noise)
     const filteredIssues = combinedIssues.filter(i => i.severity === 'CRITICAL' || i.severity === 'HIGH');
     const summary = categorizeIssues(filteredIssues);
-
-    // Calculate security score (use advanced scanner's score)
-    const securityScore = advancedResults.score;
 
     res.json({
       status: 'success',
@@ -253,10 +283,7 @@ export default async function handler(req, res) {
       }),
       filesScanned: files.length,
       timestamp: new Date().toISOString(),
-      advancedAnalysis: {
-        crossFileVulnerabilities: advancedResults.vulnerabilities.filter(v => v.dataFlow && v.dataFlow.length > 1).length,
-        architecturePatterns: aggregator.detectArchitecturePatterns().patterns
-      }
+      advancedAnalysis
     });
 
   } catch (error) {

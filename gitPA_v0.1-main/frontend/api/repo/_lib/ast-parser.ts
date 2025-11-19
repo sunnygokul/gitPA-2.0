@@ -1,9 +1,16 @@
 // @ts-nocheck
-import * as parser from '@babel/parser';
-import traverse from '@babel/traverse';
-import * as t from '@babel/types';
-import * as acorn from 'acorn';
-import * as walk from 'acorn-walk';
+// Lazy load heavy dependencies to avoid serverless bundle issues
+let parser, traverse, t, acorn, walk;
+
+try {
+  parser = require('@babel/parser');
+  traverse = require('@babel/traverse').default;
+  t = require('@babel/types');
+  acorn = require('acorn');
+  walk = require('acorn-walk');
+} catch (e) {
+  console.warn('AST parsing libraries not available, using fallback mode');
+}
 
 export interface ASTNode {
   type: string;

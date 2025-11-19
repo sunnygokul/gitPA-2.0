@@ -1,7 +1,14 @@
 // @ts-nocheck
 import axios from 'axios';
-import { ContextAggregator } from './_lib/context-aggregator';
-import { MockGenerator, CoverageAnalyzer } from './_lib/mock-generator';
+
+// Optional advanced features
+let ContextAggregator, MockGenerator;
+try {
+  ContextAggregator = require('./_lib/context-aggregator').ContextAggregator;
+  MockGenerator = require('./_lib/mock-generator').MockGenerator;
+} catch (e) {
+  console.warn('Advanced test generation features not available');
+}
 
 async function fetchRepoFiles(owner: string, repo: string, path = '', files = [], depth = 0) {
   if (depth > 10 || files.length >= 50) return files;
@@ -64,19 +71,26 @@ async function generateTestsWithAI(file: any, repoName: string, allFiles: RepoFi
   const apiKey = process.env.HUGGINGFACE_API_KEY || '';
   const framework = getTestFramework(file.language);
 
-  // Build context and analyze dependencies
-  const aggregator = new ContextAggregator();
-  await aggregator.buildContext(allFiles);
-  const fileContext = aggregator.getFileContext(file.path);
+  let mockSection = '';
+  
+  // Try advanced mock generation if libraries available
+  if (ContextAggregator && MockGenerator) {
+    try {
+      console.log('Generating mocks for dependencies...');
+      const aggregator = new ContextAggregator();
+      await aggregator.buildContext(allFiles);
+      const fileContext = aggregator.getFileContext(file.path);
 
-  // Generate mocks for dependencies
-  const mockGen = new MockGenerator();
-  const mocks = mockGen.generateMocks(file, fileContext.dependencies);
+      const mockGen = new MockGenerator();
+      const mocks = mockGen.generateMocks(file, fileContext.dependencies);
 
-  // Build enhanced prompt with mock context
-  const mockSection = mocks.length > 0 
-    ? `\n\nDEPENDENCIES:\n${fileContext.dependencies.map(d => `- ${d.path}`).join('\n')}\n\nMOCK SETUP:\n${mocks.map(m => m.implementation).join('\n\n')}`
-    : '';
+      mockSection = mocks.length > 0 
+        ? `\n\nDEPENDENCIES:\n${fileContext.dependencies.map(d => `- ${d.path}`).join('\n')}\n\nMOCK SETUP:\n${mocks.map(m => m.implementation).join('\n\n')}`
+        : '';
+    } catch (mockErr) {
+      console.warn('Mock generation failed, generating tests without mocks:', mockErr.message);
+    }
+  }
 
   const response = await fetch(
     'https://router.huggingface.co/v1/chat/completions',
@@ -110,14 +124,7 @@ async function generateTestsWithAI(file: any, repoName: string, allFiles: RepoFi
   }
 
   const data = await response.json();
-  const aiGeneratedTests = data.choices[0].message.content;
-
-  // Combine mocks with generated tests
-  if (mocks.length > 0) {
-    return `// Auto-generated mocks for dependencies\n${mocks.map(m => m.implementation).join('\n\n')}\n\n${aiGeneratedTests}`;
-  }
-
-  return aiGeneratedTests;
+  return data.choices[0].message.content;
 }
 
 export default async function handler(req, res) {

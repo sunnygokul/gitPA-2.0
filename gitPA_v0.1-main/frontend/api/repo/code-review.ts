@@ -190,12 +190,15 @@ async function getAICodeReview(files: any[], metrics: CodeMetrics, dependencies:
 }
 
 export default async function handler(req, res) {
+  console.log('🔍 Code review endpoint called:', req.method);
+  
   if (req.method !== 'POST') {
     return res.status(405).json({ status: 'error', message: 'Method not allowed' });
   }
 
   try {
     const { repoUrl } = req.body;
+    console.log('📊 Processing code review for:', repoUrl);
 
     if (!repoUrl) {
       return res.status(400).json({ status: 'error', message: 'repoUrl is required' });
@@ -248,13 +251,22 @@ export default async function handler(req, res) {
 
   } catch (error) {
     console.error('❌ CODE REVIEW ERROR:', error);
+    console.error('Error stack:', error?.stack);
     console.error('Error details:', {
       message: error?.message,
       response: error?.response?.data,
       status: error?.response?.status,
-      apiKeySet: !!process.env.HUGGINGFACE_API_KEY
+      apiKeySet: !!process.env.HUGGINGFACE_API_KEY,
+      apiKeyLength: process.env.HUGGINGFACE_API_KEY?.length || 0
     });
-    const safeMessage = error?.response?.data?.error || error?.message || 'Code review failed. Check if HUGGINGFACE_API_KEY is set in Vercel.';
-    res.status(500).json({ status: 'error', message: String(safeMessage), debug: { apiKeySet: !!process.env.HUGGINGFACE_API_KEY } });
+    const safeMessage = error?.response?.data?.error || error?.message || 'Code review failed';
+    res.status(500).json({ 
+      status: 'error', 
+      message: String(safeMessage), 
+      debug: { 
+        apiKeySet: !!process.env.HUGGINGFACE_API_KEY,
+        errorType: error?.constructor?.name
+      } 
+    });
   }
 }

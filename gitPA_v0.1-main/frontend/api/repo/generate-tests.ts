@@ -1,6 +1,6 @@
 // @ts-nocheck
 import axios from 'axios';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { HfInference } from '@huggingface/inference';
 
 async function fetchRepoFiles(owner: string, repo: string, path = '', files = [], depth = 0) {
   if (depth > 10 || files.length >= 50) return files;
@@ -60,43 +60,27 @@ function getTestFramework(language: string): string {
 }
 
 async function generateTestsWithAI(file: any, repoName: string) {
-  const apiKey = process.env.GEMINI_API_KEY || '';
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ 
-    model: 'gemini-1.5-flash',
-    generationConfig: {
-      temperature: 0.4,
-      maxOutputTokens: 8192,
-    }
-  });
-
+  const apiKey = process.env.HUGGINGFACE_API_KEY || '';
+  const hf = new HfInference(apiKey);
   const framework = getTestFramework(file.language);
 
-  const prompt = `You are an expert test engineer. Generate comprehensive unit tests for the following ${file.language} code from repository: ${repoName}
+  const response = await hf.chatCompletion({
+    model: 'Qwen/Qwen2.5-7B-Instruct',
+    messages: [
+      {
+        role: 'system',
+        content: 'You are an expert test engineer specializing in automated test generation.'
+      },
+      {
+        role: 'user',
+        content: `Generate comprehensive unit tests for ${file.language} code from: ${repoName}\n\nFILE: ${file.path}\n\`\`\`${file.language}\n${file.content}\n\`\`\`\n\nREQUIREMENTS:\n1. Use ${framework}\n2. Test ALL functions/methods\n3. Include: happy path, edge cases, error handling\n4. Use mocking for dependencies\n5. Aim for >90% coverage\n6. Add descriptive test names\n\nGenerate ONLY executable test code with imports.`
+      }
+    ],
+    max_tokens: 2048,
+    temperature: 0.4,
+  });
 
-FILE: ${file.path}
-\`\`\`${file.language}
-${file.content}
-\`\`\`
-
-REQUIREMENTS:
-1. Use ${framework} testing framework
-2. Generate tests for ALL functions, methods, and classes
-3. Include:
-   - Happy path tests (expected behavior)
-   - Edge cases (empty inputs, null, undefined, boundary values)
-   - Error handling tests (invalid inputs, exceptions)
-   - Integration tests if applicable
-4. Use proper mocking for external dependencies
-5. Aim for >90% code coverage
-6. Follow testing best practices
-7. Add descriptive test names and comments
-
-Generate ONLY the test code. Use proper imports and setup. Make tests executable.`;
-
-  const result = await model.generateContent(prompt);
-  const response = result.response;
-  return response.text();
+  return response.choices[0].message.content;
 }
 
 export default async function handler(req, res) {

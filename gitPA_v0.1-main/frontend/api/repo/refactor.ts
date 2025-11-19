@@ -1,6 +1,6 @@
 // @ts-nocheck
 import axios from 'axios';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { HfInference } from '@huggingface/inference';
 
 interface RefactoringSuggestion {
   file: string;
@@ -147,24 +147,46 @@ function calculateSimilarity(str1: string, str2: string): number {
 }
 
 async function getAIRefactoringSuggestions(files: any[], repoName: string) {
-  const apiKey = process.env.GEMINI_API_KEY || '';
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ 
-    model: 'gemini-1.5-flash',
-    generationConfig: {
-      temperature: 0.3,
-      maxOutputTokens: 8192,
-    }
+  const apiKey = process.env.HUGGINGFACE_API_KEY || '';
+  const hf = new HfInference(apiKey);
+
+  const codeContext = files
+    .slice(0, 6)
+    .map(f => `File: ${f.path}\n\`\`\`\n${f.content.substring(0, 5000)}\n\`\`\``)
+    .join('\n\n');
+
+  const response = await hf.chatCompletion({
+    model: 'Qwen/Qwen2.5-7B-Instruct',
+    messages: [
+      {
+        role: 'system',
+        content: 'You are an expert code refactoring specialist.'
+      },
+      {
+        role: 'user',
+        content: `Analyze ${repoName} and provide refactoring suggestions:\n\n${codeContext}\n\nFor each suggestion:\n1. Type (Extract Function, Simplify Logic, Performance, etc.)\n2. Severity (High/Medium/Low)\n3. Location (file + line)\n4. Problem\n5. Solution (code example)\n6. Benefits\n\nFocus on:\n- Code duplication\n- Complex logic\n- Performance\n- Security\n- Modern syntax\n\nProvide 5-10 actionable suggestions.`
+      }
+    ],
+    max_tokens: 2048,
+    temperature: 0.3,
   });
+
+  return response.choices[0].message.content;
+}
+
+async function OLD_getAIRefactoringSuggestions_DELETE_THIS(files: any[], repoName: string) {
+  const apiKey = process.env.HUGGINGFACE_API_KEY || '';
+  const hf = new HfInference(apiKey);
 
   const codeContext = files
     .slice(0, 8)
     .map(f => `File: ${f.path}\n\`\`\`\n${f.content.substring(0, 8000)}\n\`\`\``)
     .join('\n\n');
 
-  const prompt = `You are an expert code refactoring specialist analyzing repository: ${repoName}
-
-Analyze the following code and provide SPECIFIC refactoring suggestions:
+  const prompt = `<|im_start|>system
+You are Qwen2.5-Coder, an expert code refactoring specialist.<|im_end|>
+<|im_start|>user
+Analyze repository: ${repoName} and provide SPECIFIC refactoring suggestions:
 
 ${codeContext}
 
@@ -184,11 +206,21 @@ Focus on:
 - Modern syntax improvements (async/await, optional chaining, etc.)
 - Architecture improvements
 
-Provide at least 5-10 actionable suggestions with code examples.`;
+Provide at least 5-10 actionable suggestions with code examples.<|im_end|>
+<|im_start|>assistant
+`;
 
-  const result = await model.generateContent(prompt);
-  const response = result.response;
-  return response.text();
+  const response = await hf.textGeneration({
+    model: 'Qwen/Qwen2.5-Coder-32B-Instruct',
+    inputs: prompt,
+    parameters: {
+      max_new_tokens: 4096,
+      temperature: 0.3,
+      top_p: 0.9,
+    }
+  });
+
+  return response.generated_text.split('<|im_start|>assistant\n')[1] || response.generated_text;
 }
 
 export default async function handler(req, res) {

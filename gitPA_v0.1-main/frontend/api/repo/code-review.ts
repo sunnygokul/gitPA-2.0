@@ -1,6 +1,6 @@
 // @ts-nocheck
 import axios from 'axios';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { HfInference } from '@huggingface/inference';
 
 interface CodeMetrics {
   totalFiles: number;
@@ -146,15 +146,38 @@ function analyzeDependencies(files: any[]): DependencyInfo[] {
 }
 
 async function getAICodeReview(files: any[], metrics: CodeMetrics, dependencies: DependencyInfo[], repoName: string) {
-  const apiKey = process.env.GEMINI_API_KEY || '';
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ 
-    model: 'gemini-1.5-flash',
-    generationConfig: {
-      temperature: 0.4,
-      maxOutputTokens: 8192,
-    }
+  const apiKey = process.env.HUGGINGFACE_API_KEY || '';
+  const hf = new HfInference(apiKey);
+
+  // Sample key files for review
+  const keyFiles = files
+    .sort((a, b) => b.content.length - a.content.length)
+    .slice(0, 8)
+    .map(f => `File: ${f.path}\n\`\`\`\n${f.content.substring(0, 3000)}\n\`\`\``)
+    .join('\n\n');
+
+  const response = await hf.chatCompletion({
+    model: 'Qwen/Qwen2.5-7B-Instruct',
+    messages: [
+      {
+        role: 'system',
+        content: 'You are an expert software architect performing comprehensive code reviews.'
+      },
+      {
+        role: 'user',
+        content: `Review repository: ${repoName}\n\nMETRICS:\n- Files: ${metrics.totalFiles}, Lines: ${metrics.totalLines}\n- Code: ${metrics.codeLines}, Comments: ${metrics.commentLines}\n- Largest: ${metrics.largestFile.path} (${metrics.largestFile.lines} lines)\n\nDEPENDENCIES:\n${dependencies.slice(0, 5).map(d => `- ${d.file}: ${d.imports.length} imports`).join('\n')}\n\nKEY FILES:\n${keyFiles}\n\nANALYZE:\n1. Architecture & design patterns\n2. Code quality & maintainability\n3. Security vulnerabilities\n4. Performance issues\n5. Technical debt\n6. Testing coverage\n7. Documentation\n8. Recommendations\n\nProvide structured review with examples.`
+      }
+    ],
+    max_tokens: 2048,
+    temperature: 0.4,
   });
+
+  return response.choices[0].message.content;
+}
+
+async function OLD_getAICodeReview_DELETE_THIS(files: any[], metrics: CodeMetrics, dependencies: DependencyInfo[], repoName: string) {
+  const apiKey = process.env.HUGGINGFACE_API_KEY || '';
+  const hf = new HfInference(apiKey);
 
   // Sample key files for review
   const keyFiles = files
@@ -163,7 +186,10 @@ async function getAICodeReview(files: any[], metrics: CodeMetrics, dependencies:
     .map(f => `File: ${f.path}\n\`\`\`\n${f.content.substring(0, 5000)}\n\`\`\``)
     .join('\n\n');
 
-  const prompt = `You are an expert software architect performing a comprehensive code review for repository: ${repoName}
+  const prompt = `<|im_start|>system
+You are Qwen2.5-Coder, an expert software architect performing comprehensive code reviews.<|im_end|>
+<|im_start|>user
+Perform a detailed code review for repository: ${repoName}
 
 REPOSITORY METRICS:
 - Total Files: ${metrics.totalFiles}
@@ -190,11 +216,21 @@ ANALYSIS REQUIRED:
 9. **Scalability**: Evaluate if architecture can handle growth
 10. **Recommendations**: Provide actionable improvement suggestions
 
-Provide a detailed, structured review with specific examples and file references.`;
+Provide a detailed, structured review with specific examples and file references.<|im_end|>
+<|im_start|>assistant
+`;
 
-  const result = await model.generateContent(prompt);
-  const response = result.response;
-  return response.text();
+  const response = await hf.textGeneration({
+    model: 'Qwen/Qwen2.5-Coder-32B-Instruct',
+    inputs: prompt,
+    parameters: {
+      max_new_tokens: 4096,
+      temperature: 0.4,
+      top_p: 0.9,
+    }
+  });
+
+  return response.generated_text.split('<|im_start|>assistant\n')[1] || response.generated_text;
 }
 
 export default async function handler(req, res) {

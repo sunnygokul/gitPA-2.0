@@ -12,6 +12,7 @@
     "@google/generative-ai": "^0.24.1",
     "@headlessui/vue": "^1.7.23",
     "@heroicons/vue": "^2.2.0",
+    "@huggingface/inference": "^4.13.3",
     "@vueuse/core": "^13.1.0",
     "axios": "^1.8.4",
     "highlight.js": "^11.11.1",

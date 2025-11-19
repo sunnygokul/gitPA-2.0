@@ -9,11 +9,16 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@babel/parser": "^7.28.5",
+    "@babel/traverse": "^7.28.5",
+    "@babel/types": "^7.28.5",
     "@google/generative-ai": "^0.24.1",
     "@headlessui/vue": "^1.7.23",
     "@heroicons/vue": "^2.2.0",
     "@huggingface/inference": "^4.13.3",
     "@vueuse/core": "^13.1.0",
+    "acorn": "^8.15.0",
+    "acorn-walk": "^8.3.4",
     "axios": "^1.8.4",
     "highlight.js": "^11.11.1",
     "marked": "^15.0.8",

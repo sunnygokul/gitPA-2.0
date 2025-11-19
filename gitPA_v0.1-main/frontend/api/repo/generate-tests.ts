@@ -1,6 +1,5 @@
 // @ts-nocheck
 import axios from 'axios';
-import { HfInference } from '@huggingface/inference';
 
 async function fetchRepoFiles(owner: string, repo: string, path = '', files = [], depth = 0) {
   if (depth > 10 || files.length >= 50) return files;

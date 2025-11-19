@@ -1,6 +1,5 @@
 // @ts-nocheck
 import axios from 'axios';
-import { HfInference } from '@huggingface/inference';
 
 const MAX_FILES_IN_CONTEXT = 25; // Qwen handles large context well
 const MAX_TOTAL_CONTEXT_SIZE = 600000; // 32K token context

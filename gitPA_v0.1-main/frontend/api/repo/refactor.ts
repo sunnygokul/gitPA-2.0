@@ -1,14 +1,6 @@
 // @ts-nocheck
 import axios from 'axios';
 
-// Optional advanced features
-let ContextAggregator;
-try {
-  ContextAggregator = require('./_lib/context-aggregator').ContextAggregator;
-} catch (e) {
-  console.warn('Advanced refactoring features not available');
-}
-
 interface RefactoringSuggestion {
   file: string;
   type: 'Extract Function' | 'Rename' | 'Remove Duplication' | 'Simplify Logic' | 'Performance' | 'Security' | 'Modernize';
@@ -223,85 +215,24 @@ export default async function handler(req, res) {
     const automaticSuggestions = detectCodeSmells(files);
     console.log(`Found ${automaticSuggestions.length} automatic suggestions`);
 
-    let crossFileDuplication = [];
-    let circularDepSuggestions = [];
-    let archInsights = { pattern: 'Unknown', circularDeps: [] };
-
-    // Try advanced analysis if available
-    if (ContextAggregator) {
-      try {
-        console.log('Building repository context...');
-        const aggregator = new ContextAggregator();
-        await aggregator.buildContext(files);
-
-        // Detect cross-file duplication
-        const functionsByContent = new Map();
-        
-        for (const file of files) {
-          const fileContext = aggregator.getFileContext(file.path);
-          for (const func of fileContext.symbols.filter(s => s.type === 'function')) {
-            const funcContent = func.name;
-            if (functionsByContent.has(funcContent)) {
-              const existing = functionsByContent.get(funcContent);
-              crossFileDuplication.push({
-                file: file.path,
-                type: 'Remove Duplication',
-                severity: 'High',
-                title: `Duplicate function found across files`,
-                description: `Function similar to ${existing.file}:${func.name}`,
-                before: `${file.path}: ${func.name}`,
-                after: 'Extract to shared utility module',
-                benefits: ['DRY principle', 'Single source of truth', 'Reduced maintenance']
-              });
-            } else {
-              functionsByContent.set(funcContent, { file: file.path, name: func.name });
-            }
-          }
-        }
-
-        // Detect circular dependencies
-        archInsights = aggregator.getArchitectureInsights();
-        circularDepSuggestions = archInsights.circularDeps.map(cycle => ({
-          file: cycle.split(' → ')[0],
-          type: 'Simplify Logic',
-          severity: 'High',
-          title: 'Circular dependency detected',
-          description: `Circular import chain: ${cycle}`,
-          before: cycle,
-          after: 'Refactor to break cycle - consider dependency injection or interface extraction',
-          benefits: ['Better modularity', 'Easier testing', 'Clearer dependencies']
-        }));
-      } catch (advErr) {
-        console.warn('Advanced refactoring analysis failed:', advErr.message);
-      }
-    }
-
-    const allSuggestions = [...automaticSuggestions, ...crossFileDuplication, ...circularDepSuggestions];
-
     console.log('Getting AI-powered refactoring suggestions...');
     const aiSuggestions = await getAIRefactoringSuggestions(files, repoName);
 
     const stats = {
-      highPriority: allSuggestions.filter(s => s.severity === 'High').length,
-      mediumPriority: allSuggestions.filter(s => s.severity === 'Medium').length,
-      lowPriority: allSuggestions.filter(s => s.severity === 'Low').length,
-      total: allSuggestions.length,
-      crossFileDuplication: crossFileDuplication.length,
-      circularDependencies: circularDepSuggestions.length
+      highPriority: automaticSuggestions.filter(s => s.severity === 'High').length,
+      mediumPriority: automaticSuggestions.filter(s => s.severity === 'Medium').length,
+      lowPriority: automaticSuggestions.filter(s => s.severity === 'Low').length,
+      total: automaticSuggestions.length
     };
 
     res.json({
       status: 'success',
       repoName,
       stats,
-      suggestions: allSuggestions.sort((a, b) => {
+      suggestions: automaticSuggestions.sort((a, b) => {
         const severityOrder = { High: 0, Medium: 1, Low: 2 };
         return severityOrder[a.severity] - severityOrder[b.severity];
       }),
-      architecture: {
-        pattern: archInsights.pattern,
-        circularDependencies: archInsights.circularDeps
-      },
       aiAnalysis: aiSuggestions,
       filesAnalyzed: files.length,
       timestamp: new Date().toISOString()

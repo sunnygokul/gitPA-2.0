@@ -1,14 +1,6 @@
 // @ts-nocheck
 import axios from 'axios';
 
-// Optional advanced features
-let ContextAggregator;
-try {
-  ContextAggregator = require('./_lib/context-aggregator').ContextAggregator;
-} catch (e) {
-  console.warn('Advanced code review features not available');
-}
-
 interface CodeMetrics {
   totalFiles: number;
   totalLines: number;
@@ -226,32 +218,6 @@ export default async function handler(req, res) {
 
     const metrics = calculateMetrics(files);
     const dependencies = analyzeDependencies(files);
-
-    let archInsights = { pattern: 'Unknown', circularDeps: [] };
-    let couplingAnalysis = [];
-    
-    // Try advanced analysis if available
-    if (ContextAggregator) {
-      try {
-        console.log('Building repository context...');
-        const aggregator = new ContextAggregator();
-        await aggregator.buildContext(files);
-
-        archInsights = aggregator.getArchitectureInsights();
-
-        couplingAnalysis = files.slice(0, 20).map(f => {
-          const coupling = aggregator.graph.analyzeCoupling(f.path);
-          return {
-            file: f.path,
-            afferentCoupling: coupling.afferent,
-            efferentCoupling: coupling.efferent,
-            instability: coupling.instability
-          };
-        });
-      } catch (advErr) {
-        console.warn('Advanced code review analysis failed:', advErr.message);
-      }
-    }
 
     console.log('Generating AI-powered code review...');
     const aiReview = await getAICodeReview(files, metrics, dependencies, repoName);

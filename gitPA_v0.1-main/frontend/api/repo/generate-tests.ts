@@ -1,15 +1,6 @@
 // @ts-nocheck
 import axios from 'axios';
 
-// Optional advanced features
-let ContextAggregator, MockGenerator;
-try {
-  ContextAggregator = require('./_lib/context-aggregator').ContextAggregator;
-  MockGenerator = require('./_lib/mock-generator').MockGenerator;
-} catch (e) {
-  console.warn('Advanced test generation features not available');
-}
-
 async function fetchRepoFiles(owner: string, repo: string, path = '', files = [], depth = 0) {
   if (depth > 10 || files.length >= 50) return files;
 
@@ -67,30 +58,9 @@ function getTestFramework(language: string): string {
   return frameworks[language] || 'appropriate testing framework';
 }
 
-async function generateTestsWithAI(file: any, repoName: string, allFiles: RepoFile[]) {
+async function generateTestsWithAI(file: any, repoName: string) {
   const apiKey = process.env.HUGGINGFACE_API_KEY || '';
   const framework = getTestFramework(file.language);
-
-  let mockSection = '';
-  
-  // Try advanced mock generation if libraries available
-  if (ContextAggregator && MockGenerator) {
-    try {
-      console.log('Generating mocks for dependencies...');
-      const aggregator = new ContextAggregator();
-      await aggregator.buildContext(allFiles);
-      const fileContext = aggregator.getFileContext(file.path);
-
-      const mockGen = new MockGenerator();
-      const mocks = mockGen.generateMocks(file, fileContext.dependencies);
-
-      mockSection = mocks.length > 0 
-        ? `\n\nDEPENDENCIES:\n${fileContext.dependencies.map(d => `- ${d.path}`).join('\n')}\n\nMOCK SETUP:\n${mocks.map(m => m.implementation).join('\n\n')}`
-        : '';
-    } catch (mockErr) {
-      console.warn('Mock generation failed, generating tests without mocks:', mockErr.message);
-    }
-  }
 
   const response = await fetch(
     'https://router.huggingface.co/v1/chat/completions',
@@ -105,11 +75,11 @@ async function generateTestsWithAI(file: any, repoName: string, allFiles: RepoFi
         messages: [
           {
             role: 'system',
-            content: 'You are an expert test engineer. Generate comprehensive tests with proper mocking for external dependencies.'
+            content: 'You are an expert test engineer.'
           },
           {
             role: 'user',
-            content: `Generate ${framework} tests for:\n\nFILE: ${file.path}\n\`\`\`${file.language}\n${file.content}\n\`\`\`${mockSection}\n\nInclude: happy path, edge cases, error handling. Use the provided mocks for dependencies. Generate ONLY test code with imports.`
+            content: `Generate ${framework} tests for:\n\nFILE: ${file.path}\n\`\`\`${file.language}\n${file.content}\n\`\`\`\n\nInclude: happy path, edge cases, error handling. Generate ONLY test code with imports.`
           }
         ],
         max_tokens: 2048,
@@ -169,7 +139,7 @@ export default async function handler(req, res) {
     const testResults = [];
     for (const file of targetFiles) {
       try {
-        const testCode = await generateTestsWithAI(file, repoName, files);
+        const testCode = await generateTestsWithAI(file, repoName);
         const testFileName = generateTestFileName(file.name, file.language);
         
         testResults.push({

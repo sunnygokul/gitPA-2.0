@@ -1,14 +1,6 @@
 // @ts-nocheck
 import axios from 'axios';
 
-// Optional advanced features
-let ContextAggregator;
-try {
-  ContextAggregator = require('./_lib/context-aggregator').ContextAggregator;
-} catch (e) {
-  console.warn('Advanced assist features not available');
-}
-
 const MAX_FILES_IN_CONTEXT = 25; // Qwen handles large context well
 const MAX_TOTAL_CONTEXT_SIZE = 600000; // 32K token context
 const MAX_FILE_SIZE = 100000;
@@ -61,7 +53,7 @@ async function fetchRepoFiles(owner: string, repo: string, path = '', files = []
   return files;
 }
 
-function getRelevantFiles(allFiles, query, aggregator) {
+function getRelevantFiles(allFiles, query) {
   if (allFiles.length <= MAX_FILES_IN_CONTEXT) {
     return allFiles;
   }
@@ -76,18 +68,6 @@ function getRelevantFiles(allFiles, query, aggregator) {
     queryTerms.forEach(term => {
       if (pathLower.includes(term)) score += 3;
       if (contentLower.includes(term)) score += 1;
-      
-      // Check if query mentions a symbol in this file (if aggregator available)
-      if (aggregator) {
-        try {
-          const fileContext = aggregator.getFileContext(file.path);
-          if (fileContext.symbols.some(s => s.name.toLowerCase().includes(term))) {
-            score += 5; // High priority for symbol matches
-          }
-        } catch (e) {
-          // Ignore errors, just skip advanced scoring
-        }
-      }
     });
     
     return { file, score };
@@ -99,30 +79,8 @@ function getRelevantFiles(allFiles, query, aggregator) {
     .map(item => item.file);
 }
 
-async function getAIResponse(query: string, context: string, repoName: string, aggregator) {
+async function getAIResponse(query: string, context: string, repoName: string) {
   const apiKey = process.env.HUGGINGFACE_API_KEY || '';
-  
-  let additionalContext = '';
-  
-  // Get architecture insights if available
-  if (aggregator) {
-    try {
-      const archInsights = aggregator.getArchitectureInsights();
-      const queryTerms = query.toLowerCase().split(/\s+/);
-      const symbolContexts = [];
-      
-      for (const term of queryTerms) {
-        const symbolInfo = aggregator.getSymbolContext(term);
-        if (symbolInfo.definition) {
-          symbolContexts.push(`Symbol "${term}": Defined in ${symbolInfo.definition.file}, used in ${symbolInfo.references.length} files`);
-        }
-      }
-
-      additionalContext = `\nARCHITECTURE: ${archInsights.pattern}${symbolContexts.length > 0 ? `\nSYMBOL INFO:\n${symbolContexts.join('\n')}` : ''}`;
-    } catch (e) {
-      console.warn('Could not get architecture insights:', e.message);
-    }
-  }
 
   const response = await fetch(
     'https://router.huggingface.co/v1/chat/completions',
@@ -137,11 +95,11 @@ async function getAIResponse(query: string, context: string, repoName: string, a
         messages: [
           {
             role: 'system',
-            content: `You are an expert code analysis AI with deep understanding of software architecture analyzing: ${repoName}. ONLY answer based on provided files. Cite specific files and explain cross-file relationships when relevant.`
+            content: `You are an expert code analysis AI analyzing: ${repoName}. ONLY answer based on provided files. Cite specific files.`
           },
           {
             role: 'user',
-            content: `${additionalContext}\n\nREPOSITORY FILES:\n${context}\n\nQUESTION: ${query}\n\nAnalyze based ONLY on files above. Consider architecture patterns and cross-file relationships in your answer.`
+            content: `REPOSITORY FILES:\n${context}\n\nQUESTION: ${query}\n\nAnalyze based ONLY on files above.`
           }
         ],
         max_tokens: 2048,
@@ -175,35 +133,11 @@ export default async function handler(req, res) {
     const allFiles = await fetchRepoFiles(owner, repo);
     console.log(`Found ${allFiles.length} files in repository`);
     
-    let aggregator = null;
-    
-    // Try advanced analysis if available
-    if (ContextAggregator) {
-      try {
-        console.log('Building repository context...');
-        aggregator = new ContextAggregator();
-        await aggregator.buildContext(allFiles);
-      } catch (advErr) {
-        console.warn('Advanced assist features failed:', advErr.message);
-        aggregator = null;
-      }
-    }
-    
-    const relevantFiles = getRelevantFiles(allFiles, query, aggregator);
+    const relevantFiles = getRelevantFiles(allFiles, query);
     console.log(`Selected ${relevantFiles.length} relevant files for context`);
     
     let context = relevantFiles
-      .map(file => {
-        if (aggregator) {
-          const fileContext = aggregator.getFileContext(file.path);
-          const symbolInfo = fileContext.symbols.length > 0 
-            ? `\nExports: ${fileContext.symbols.map(s => s.name).join(', ')}`
-            : '';
-          return `File: ${file.path}${symbolInfo}\n\`\`\`\n${file.content}\n\`\`\``;
-        } else {
-          return `File: ${file.path}\n\`\`\`\n${file.content}\n\`\`\``;
-        }
-      })
+      .map(file => `File: ${file.path}\n\`\`\`\n${file.content}\n\`\`\``)
       .join('\n\n');
     
     if (context.length > MAX_TOTAL_CONTEXT_SIZE) {
@@ -215,7 +149,7 @@ export default async function handler(req, res) {
     }
     
     const repoName = `${owner}/${repo}`;
-    const response = await getAIResponse(query, context, repoName, aggregator);
+    const response = await getAIResponse(query, context, repoName);
     res.json({ status: 'success', response });
   } catch (error) {
     console.error('❌ ASSIST ERROR:', error);

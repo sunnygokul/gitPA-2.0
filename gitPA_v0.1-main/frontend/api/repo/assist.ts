@@ -1,9 +1,10 @@
 // @ts-nocheck
 import axios from 'axios';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
-const MAX_FILES_IN_CONTEXT = 5;
-const MAX_TOTAL_CONTEXT_SIZE = 30000;
-const MAX_FILE_SIZE = 50000;
+const MAX_FILES_IN_CONTEXT = 20; // Increased for Gemini's 1M token context
+const MAX_TOTAL_CONTEXT_SIZE = 500000; // Much larger context window
+const MAX_FILE_SIZE = 100000;
 
 async function fetchRepoFiles(owner: string, repo: string, path = '', files = []) {
   try {
@@ -80,23 +81,36 @@ function getRelevantFiles(allFiles, query) {
 }
 
 async function getAIResponse(query: string, context: string, repoName: string) {
-  const apiKey = process.env.OPENAI_API_KEY || '';
-  const resp = await axios.post('https://api.openai.com/v1/chat/completions', {
-    model: 'gpt-3.5-turbo',
-    messages: [
-      { 
-        role: 'system', 
-        content: `You are a helpful AI assistant analyzing the GitHub repository: ${repoName}. IMPORTANT: You must ONLY answer questions based on the provided repository files below. Do NOT use general knowledge or information from other repositories. If the context doesn't contain the answer, say "I don't see that information in the provided files." Always cite specific files from the context when answering.` 
-      },
-      { role: 'user', content: `REPOSITORY FILES:\n${context}\n\nQUESTION ABOUT THIS SPECIFIC REPOSITORY: ${query}\n\nRemember: Answer ONLY based on the files shown above. Do not use external knowledge.` }
-    ],
-    max_tokens: 2000,
-    temperature: 0.3,
-  }, {
-    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }
+  const apiKey = process.env.GEMINI_API_KEY || '';
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({ 
+    model: 'gemini-2.0-flash-exp',
+    generationConfig: {
+      temperature: 0.3,
+      maxOutputTokens: 8192,
+    }
   });
 
-  return resp.data.choices?.[0]?.message?.content || 'No response';
+  const prompt = `You are an expert code analysis AI analyzing the GitHub repository: ${repoName}.
+
+IMPORTANT INSTRUCTIONS:
+- ONLY answer based on the repository files provided below
+- Do NOT use general knowledge or external information
+- Always cite specific files when answering
+- If information isn't in the provided files, say so clearly
+
+REPOSITORY FILES:
+${context}
+
+---
+
+USER QUESTION: ${query}
+
+Analyze the code structure, dependencies, and provide detailed insights based ONLY on the files above.`;
+
+  const result = await model.generateContent(prompt);
+  const response = result.response;
+  return response.text() || 'No response generated';
 }
 
 export default async function handler(req, res) {

@@ -1,29 +1,61 @@
-# GitHub Assistant
+# 🤖 GitPA 2.0 - AI-Powered GitHub Repository Analysis Platform
 
-A web-based application that helps developers interact with public GitHub repositories using AI-powered assistance.
+An advanced web-based application that revolutionizes code analysis with comprehensive AI-powered features. Go beyond simple code browsing with intelligent security scanning, automated test generation, code review, and refactoring suggestions.
 
-## Features
+## ✨ Features
 
-- Repository URL input and validation
-- Repository content scanning and analysis
-- AI-powered assistance using GPT-4o-mini
-- Interactive chat interface
-- Conversation history and context retention
+### 🔍 Core Analysis
+- **Smart Repository Scanning** - Analyzes entire repository structure and relationships
+- **AI-Powered Chat** - Ask questions about your codebase using Google Gemini 2.0 Flash
+- **Multi-File Context** - Understands code across files (up to 1M token context)
+- **Interactive File Explorer** - Browse repository structure with syntax highlighting
 
-## Tech Stack
+### 🛡️ Security & Quality
+- **🔒 Security Vulnerability Scanner** - Detects 14+ types of security issues
+  - Hardcoded credentials and API keys
+  - SQL injection, XSS, command injection
+  - Insecure protocols and permissions
+  - Code injection (eval, exec)
+  - Weak cryptography
+  
+- **📊 Comprehensive Code Review** - AI-driven architecture and quality assessment
+  - Code quality metrics (documentation, maintainability, dependencies)
+  - Performance bottleneck detection
+  - Architecture pattern recognition
+  - Technical debt identification
+  
+- **🧪 Automated Test Generation** - Creates unit tests for multiple frameworks
+  - Jest (JavaScript/TypeScript)
+  - pytest (Python)
+  - JUnit (Java)
+  - NUnit (C#)
+  - Includes happy path, edge cases, and error handling tests
+  
+- **🔧 Intelligent Refactoring Suggestions** - Identifies code smells and improvements
+  - Long functions and complex logic
+  - Code duplication detection
+  - Magic number elimination
+  - Deep nesting simplification
+
+## 🚀 Tech Stack
 
 ### Frontend
-- Vue.js 3 (Composition API)
-- TypeScript
-- Tailwind CSS
-- Pinia
-- Axios
+- **Vue.js 3** (Composition API with TypeScript)
+- **Tailwind CSS** - Modern utility-first styling
+- **Pinia** - State management
+- **Marked + Highlight.js** - Markdown rendering with syntax highlighting
 
 ### Backend
-- Node.js with Express.js
-- TypeScript
-- GitHub API integration
-- OpenAI API integration
+- **Vercel Serverless Functions** - Scalable serverless architecture
+- **Google Gemini 2.0 Flash** - Free AI with 1M token context window
+- **GitHub REST API** - Repository data fetching
+- **TypeScript** - Type-safe code
+
+### AI Capabilities
+- **Model**: Gemini 2.0 Flash Experimental
+- **Context Window**: 1 million tokens (~3000 pages of code)
+- **Cost**: FREE (1500 requests/day)
+- **Features**: Code analysis, test generation, security scanning, refactoring
 
 ## Project Structure
 
@@ -35,24 +67,47 @@ gitPA_v0.1/
 └── README.md          # Project documentation
 ```
 
-## Getting Started
+## 🎯 Quick Start (5 minutes)
 
-1. Clone the repository
-2. Install dependencies:
-   ```bash
-   # Install frontend dependencies
-   cd frontend
-   pnpm install
+### 1. Get API Keys (Both FREE)
 
-   # Install backend dependencies
-   cd ../backend
-   pnpm install
-   ```
+#### GitHub Token
+1. Go to https://github.com/settings/tokens
+2. Click "Generate new token (classic)"
+3. Select scopes: `repo` or `public_repo`
+4. Copy the token
 
-3. Set up environment variables:
-   - Copy `.env.example` to `.env` in both frontend and backend directories
-   - For the backend, you'll need:
-     - A GitHub Personal Access Token (from GitHub Developer Settings)
+#### Gemini API Key
+1. Go to https://aistudio.google.com/app/apikey
+2. Click "Create API Key"
+3. Copy the key (FREE - 1500 requests/day)
+
+### 2. Deploy to Vercel (Recommended)
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/sunnygokul/gitPA-2.0)
+
+1. Click the button above
+2. Set environment variables in Vercel:
+   - `GITHUB_TOKEN`: Your GitHub token
+   - `GEMINI_API_KEY`: Your Gemini API key
+3. Deploy!
+
+### 3. Local Development
+
+```bash
+# Clone the repository
+git clone https://github.com/sunnygokul/gitPA-2.0.git
+cd gitPA-2.0
+
+# Install dependencies
+cd frontend
+pnpm install
+
+# Set up environment variables
+# In Vercel dashboard, add GITHUB_TOKEN and GEMINI_API_KEY
+
+# Run development server
+pnpm run dev
      - An OpenAI API Key (from OpenAI Platform)
    - For the frontend, configure the backend API URL (default: http://localhost:3000)
    - In case you get an `Invalid API key error`. Try setting your api key manually in the command line

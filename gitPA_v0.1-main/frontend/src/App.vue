@@ -73,6 +73,41 @@
                     </a>
                   </div>
                 </div>
+                
+                <!-- AI-Powered Actions -->
+                <div class="mt-4 pt-4 border-t border-gray-600">
+                  <p class="text-sm text-gray-400 mb-3 font-medium">🤖 AI-Powered Analysis:</p>
+                  <div class="grid grid-cols-2 gap-2">
+                    <button
+                      @click="repoStore.runSecurityScan()"
+                      :disabled="chatLoading"
+                      class="px-3 py-2 bg-red-600/20 hover:bg-red-600/30 border border-red-500/50 rounded-lg text-sm text-red-300 transition-all disabled:opacity-50"
+                    >
+                      🔒 Security Scan
+                    </button>
+                    <button
+                      @click="repoStore.runCodeReview()"
+                      :disabled="chatLoading"
+                      class="px-3 py-2 bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/50 rounded-lg text-sm text-blue-300 transition-all disabled:opacity-50"
+                    >
+                      📊 Code Review
+                    </button>
+                    <button
+                      @click="repoStore.generateTests()"
+                      :disabled="chatLoading"
+                      class="px-3 py-2 bg-green-600/20 hover:bg-green-600/30 border border-green-500/50 rounded-lg text-sm text-green-300 transition-all disabled:opacity-50"
+                    >
+                      🧪 Generate Tests
+                    </button>
+                    <button
+                      @click="repoStore.suggestRefactoring()"
+                      :disabled="chatLoading"
+                      class="px-3 py-2 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/50 rounded-lg text-sm text-purple-300 transition-all disabled:opacity-50"
+                    >
+                      🔧 Refactor Tips
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
             

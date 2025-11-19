@@ -1,6 +1,5 @@
 // @ts-nocheck
 import axios from 'axios';
-import { HfInference } from '@huggingface/inference';
 
 interface CodeMetrics {
   totalFiles: number;
@@ -147,7 +146,6 @@ function analyzeDependencies(files: any[]): DependencyInfo[] {
 
 async function getAICodeReview(files: any[], metrics: CodeMetrics, dependencies: DependencyInfo[], repoName: string) {
   const apiKey = process.env.HUGGINGFACE_API_KEY || '';
-  const hf = new HfInference(apiKey);
 
   // Sample key files for review
   const keyFiles = files
@@ -189,64 +187,6 @@ async function getAICodeReview(files: any[], metrics: CodeMetrics, dependencies:
 
   const data = await response.json();
   return data.choices[0].message.content;
-}
-
-async function OLD_getAICodeReview_DELETE_THIS(files: any[], metrics: CodeMetrics, dependencies: DependencyInfo[], repoName: string) {
-  const apiKey = process.env.HUGGINGFACE_API_KEY || '';
-  const hf = new HfInference(apiKey);
-
-  // Sample key files for review
-  const keyFiles = files
-    .sort((a, b) => b.content.length - a.content.length)
-    .slice(0, 10)
-    .map(f => `File: ${f.path}\n\`\`\`\n${f.content.substring(0, 5000)}\n\`\`\``)
-    .join('\n\n');
-
-  const prompt = `<|im_start|>system
-You are Qwen2.5-Coder, an expert software architect performing comprehensive code reviews.<|im_end|>
-<|im_start|>user
-Perform a detailed code review for repository: ${repoName}
-
-REPOSITORY METRICS:
-- Total Files: ${metrics.totalFiles}
-- Total Lines: ${metrics.totalLines} (Code: ${metrics.codeLines}, Comments: ${metrics.commentLines}, Blank: ${metrics.blankLines})
-- Average File Size: ${metrics.averageFileSize} lines
-- Largest File: ${metrics.largestFile.path} (${metrics.largestFile.lines} lines)
-- Languages: ${Object.keys(metrics.languageDistribution).join(', ')}
-
-DEPENDENCY ANALYSIS:
-${dependencies.slice(0, 5).map(d => `- ${d.file}: imports ${d.imports.length} modules, exports ${d.exports.length} items`).join('\n')}
-
-KEY FILES FOR REVIEW:
-${keyFiles}
-
-ANALYSIS REQUIRED:
-1. **Architecture Assessment**: Evaluate overall code structure, design patterns, and organization
-2. **Code Quality**: Assess maintainability, readability, and adherence to best practices
-3. **Security Concerns**: Identify potential vulnerabilities (beyond basic patterns)
-4. **Performance Issues**: Spot inefficient algorithms, memory leaks, or bottlenecks
-5. **Technical Debt**: Highlight areas needing refactoring or modernization
-6. **Dependencies**: Evaluate external dependencies and potential risks
-7. **Testing Coverage**: Assess test presence and quality
-8. **Documentation**: Review code comments and documentation quality
-9. **Scalability**: Evaluate if architecture can handle growth
-10. **Recommendations**: Provide actionable improvement suggestions
-
-Provide a detailed, structured review with specific examples and file references.<|im_end|>
-<|im_start|>assistant
-`;
-
-  const response = await hf.textGeneration({
-    model: 'Qwen/Qwen2.5-Coder-32B-Instruct',
-    inputs: prompt,
-    parameters: {
-      max_new_tokens: 4096,
-      temperature: 0.4,
-      top_p: 0.9,
-    }
-  });
-
-  return response.generated_text.split('<|im_start|>assistant\n')[1] || response.generated_text;
 }
 
 export default async function handler(req, res) {

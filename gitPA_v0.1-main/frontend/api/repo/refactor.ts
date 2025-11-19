@@ -1,6 +1,5 @@
 // @ts-nocheck
 import axios from 'axios';
-import { HfInference } from '@huggingface/inference';
 
 interface RefactoringSuggestion {
   file: string;
@@ -148,7 +147,6 @@ function calculateSimilarity(str1: string, str2: string): number {
 
 async function getAIRefactoringSuggestions(files: any[], repoName: string) {
   const apiKey = process.env.HUGGINGFACE_API_KEY || '';
-  const hf = new HfInference(apiKey);
 
   const codeContext = files
     .slice(0, 6)
@@ -188,55 +186,6 @@ async function getAIRefactoringSuggestions(files: any[], repoName: string) {
 
   const data = await response.json();
   return data.choices[0].message.content;
-}
-
-async function OLD_getAIRefactoringSuggestions_DELETE_THIS(files: any[], repoName: string) {
-  const apiKey = process.env.HUGGINGFACE_API_KEY || '';
-  const hf = new HfInference(apiKey);
-
-  const codeContext = files
-    .slice(0, 8)
-    .map(f => `File: ${f.path}\n\`\`\`\n${f.content.substring(0, 8000)}\n\`\`\``)
-    .join('\n\n');
-
-  const prompt = `<|im_start|>system
-You are Qwen2.5-Coder, an expert code refactoring specialist.<|im_end|>
-<|im_start|>user
-Analyze repository: ${repoName} and provide SPECIFIC refactoring suggestions:
-
-${codeContext}
-
-For each suggestion, provide:
-1. **Type**: (Extract Function, Simplify Logic, Performance, Security, etc.)
-2. **Severity**: (High, Medium, Low)
-3. **Location**: Specific file and approximate line
-4. **Problem**: What's wrong with current code
-5. **Solution**: Concrete refactored code example
-6. **Benefits**: Why this improves the codebase
-
-Focus on:
-- Code duplication
-- Complex/nested logic
-- Performance bottlenecks
-- Security vulnerabilities
-- Modern syntax improvements (async/await, optional chaining, etc.)
-- Architecture improvements
-
-Provide at least 5-10 actionable suggestions with code examples.<|im_end|>
-<|im_start|>assistant
-`;
-
-  const response = await hf.textGeneration({
-    model: 'Qwen/Qwen2.5-Coder-32B-Instruct',
-    inputs: prompt,
-    parameters: {
-      max_new_tokens: 4096,
-      temperature: 0.3,
-      top_p: 0.9,
-    }
-  });
-
-  return response.generated_text.split('<|im_start|>assistant\n')[1] || response.generated_text;
 }
 
 export default async function handler(req, res) {

@@ -155,23 +155,39 @@ async function getAIRefactoringSuggestions(files: any[], repoName: string) {
     .map(f => `File: ${f.path}\n\`\`\`\n${f.content.substring(0, 5000)}\n\`\`\``)
     .join('\n\n');
 
-  const response = await hf.chatCompletion({
-    model: 'Qwen/Qwen2.5-7B-Instruct',
-    messages: [
-      {
-        role: 'system',
-        content: 'You are an expert code refactoring specialist.'
+  const response = await fetch(
+    'https://api-inference.huggingface.co/models/Qwen/Qwen2.5-7B-Instruct/v1/chat/completions',
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
       },
-      {
-        role: 'user',
-        content: `Analyze ${repoName} and provide refactoring suggestions:\n\n${codeContext}\n\nFor each suggestion:\n1. Type (Extract Function, Simplify Logic, Performance, etc.)\n2. Severity (High/Medium/Low)\n3. Location (file + line)\n4. Problem\n5. Solution (code example)\n6. Benefits\n\nFocus on:\n- Code duplication\n- Complex logic\n- Performance\n- Security\n- Modern syntax\n\nProvide 5-10 actionable suggestions.`
-      }
-    ],
-    max_tokens: 2048,
-    temperature: 0.3,
-  });
+      body: JSON.stringify({
+        model: 'Qwen/Qwen2.5-7B-Instruct',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are an expert code refactoring specialist.'
+          },
+          {
+            role: 'user',
+            content: `Refactor ${repoName}:\n\n${codeContext}\n\nProvide 5-10 suggestions with: Type, Severity, Location, Problem, Solution, Benefits. Focus on: duplication, complexity, performance, security.`
+          }
+        ],
+        max_tokens: 2048,
+        temperature: 0.3,
+      }),
+    }
+  );
 
-  return response.choices[0].message.content;
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`HF API Error: ${response.status} - ${error}`);
+  }
+
+  const data = await response.json();
+  return data.choices[0].message.content;
 }
 
 async function OLD_getAIRefactoringSuggestions_DELETE_THIS(files: any[], repoName: string) {

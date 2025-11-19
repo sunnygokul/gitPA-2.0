@@ -82,25 +82,40 @@ function getRelevantFiles(allFiles, query) {
 
 async function getAIResponse(query: string, context: string, repoName: string) {
   const apiKey = process.env.HUGGINGFACE_API_KEY || '';
-  const hf = new HfInference(apiKey);
-
-  const response = await hf.chatCompletion({
-    model: 'Qwen/Qwen2.5-7B-Instruct',
-    messages: [
-      {
-        role: 'system',
-        content: `You are an expert code analysis AI analyzing the GitHub repository: ${repoName}.\n\nIMPORTANT:\n- ONLY answer based on the repository files provided\n- Always cite specific files\n- If info isn't in files, say so clearly`
+  
+  const response = await fetch(
+    'https://api-inference.huggingface.co/models/Qwen/Qwen2.5-7B-Instruct/v1/chat/completions',
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
       },
-      {
-        role: 'user',
-        content: `REPOSITORY FILES:\n${context}\n\n---\n\nQUESTION: ${query}\n\nAnalyze the code and provide detailed insights based ONLY on the files above.`
-      }
-    ],
-    max_tokens: 2048,
-    temperature: 0.3,
-  });
+      body: JSON.stringify({
+        model: 'Qwen/Qwen2.5-7B-Instruct',
+        messages: [
+          {
+            role: 'system',
+            content: `You are an expert code analysis AI analyzing: ${repoName}. ONLY answer based on provided files. Cite specific files.`
+          },
+          {
+            role: 'user',
+            content: `REPOSITORY FILES:\n${context}\n\nQUESTION: ${query}\n\nAnalyze based ONLY on files above.`
+          }
+        ],
+        max_tokens: 2048,
+        temperature: 0.3,
+      }),
+    }
+  );
 
-  return response.choices[0].message.content;
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`HF API Error: ${response.status} - ${error}`);
+  }
+
+  const data = await response.json();
+  return data.choices[0].message.content;
 }
 
 export default async function handler(req, res) {
@@ -138,8 +153,14 @@ export default async function handler(req, res) {
     const response = await getAIResponse(query, context, repoName);
     res.json({ status: 'success', response });
   } catch (error) {
-    console.error('assist error', error);
-    const safeMessage = error?.response?.data?.message || error?.message || 'Failed to process query';
-    res.status(500).json({ status: 'error', message: String(safeMessage) });
+    console.error('❌ ASSIST ERROR:', error);
+    console.error('Error details:', {
+      message: error?.message,
+      response: error?.response?.data,
+      status: error?.response?.status,
+      apiKeySet: !!process.env.HUGGINGFACE_API_KEY
+    });
+    const safeMessage = error?.response?.data?.error || error?.message || 'Failed to process query. Check if HUGGINGFACE_API_KEY is set in Vercel.';
+    res.status(500).json({ status: 'error', message: String(safeMessage), debug: { apiKeySet: !!process.env.HUGGINGFACE_API_KEY } });
   }
 }

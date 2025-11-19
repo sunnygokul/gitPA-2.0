@@ -156,23 +156,39 @@ async function getAICodeReview(files: any[], metrics: CodeMetrics, dependencies:
     .map(f => `File: ${f.path}\n\`\`\`\n${f.content.substring(0, 3000)}\n\`\`\``)
     .join('\n\n');
 
-  const response = await hf.chatCompletion({
-    model: 'Qwen/Qwen2.5-7B-Instruct',
-    messages: [
-      {
-        role: 'system',
-        content: 'You are an expert software architect performing comprehensive code reviews.'
+  const response = await fetch(
+    'https://api-inference.huggingface.co/models/Qwen/Qwen2.5-7B-Instruct/v1/chat/completions',
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
       },
-      {
-        role: 'user',
-        content: `Review repository: ${repoName}\n\nMETRICS:\n- Files: ${metrics.totalFiles}, Lines: ${metrics.totalLines}\n- Code: ${metrics.codeLines}, Comments: ${metrics.commentLines}\n- Largest: ${metrics.largestFile.path} (${metrics.largestFile.lines} lines)\n\nDEPENDENCIES:\n${dependencies.slice(0, 5).map(d => `- ${d.file}: ${d.imports.length} imports`).join('\n')}\n\nKEY FILES:\n${keyFiles}\n\nANALYZE:\n1. Architecture & design patterns\n2. Code quality & maintainability\n3. Security vulnerabilities\n4. Performance issues\n5. Technical debt\n6. Testing coverage\n7. Documentation\n8. Recommendations\n\nProvide structured review with examples.`
-      }
-    ],
-    max_tokens: 2048,
-    temperature: 0.4,
-  });
+      body: JSON.stringify({
+        model: 'Qwen/Qwen2.5-7B-Instruct',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are an expert software architect.'
+          },
+          {
+            role: 'user',
+            content: `Review ${repoName}:\n\nMETRICS: ${metrics.totalFiles} files, ${metrics.totalLines} lines\n\nKEY FILES:\n${keyFiles}\n\nAnalyze: architecture, quality, security, performance, technical debt. Provide actionable recommendations.`
+          }
+        ],
+        max_tokens: 2048,
+        temperature: 0.4,
+      }),
+    }
+  );
 
-  return response.choices[0].message.content;
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`HF API Error: ${response.status} - ${error}`);
+  }
+
+  const data = await response.json();
+  return data.choices[0].message.content;
 }
 
 async function OLD_getAICodeReview_DELETE_THIS(files: any[], metrics: CodeMetrics, dependencies: DependencyInfo[], repoName: string) {
@@ -291,8 +307,14 @@ export default async function handler(req, res) {
     });
 
   } catch (error) {
-    console.error('Code review error:', error);
-    const safeMessage = error?.response?.data?.message || error?.message || 'Code review failed';
-    res.status(500).json({ status: 'error', message: String(safeMessage) });
+    console.error('❌ CODE REVIEW ERROR:', error);
+    console.error('Error details:', {
+      message: error?.message,
+      response: error?.response?.data,
+      status: error?.response?.status,
+      apiKeySet: !!process.env.HUGGINGFACE_API_KEY
+    });
+    const safeMessage = error?.response?.data?.error || error?.message || 'Code review failed. Check if HUGGINGFACE_API_KEY is set in Vercel.';
+    res.status(500).json({ status: 'error', message: String(safeMessage), debug: { apiKeySet: !!process.env.HUGGINGFACE_API_KEY } });
   }
 }

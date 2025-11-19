@@ -61,26 +61,41 @@ function getTestFramework(language: string): string {
 
 async function generateTestsWithAI(file: any, repoName: string) {
   const apiKey = process.env.HUGGINGFACE_API_KEY || '';
-  const hf = new HfInference(apiKey);
   const framework = getTestFramework(file.language);
 
-  const response = await hf.chatCompletion({
-    model: 'Qwen/Qwen2.5-7B-Instruct',
-    messages: [
-      {
-        role: 'system',
-        content: 'You are an expert test engineer specializing in automated test generation.'
+  const response = await fetch(
+    'https://api-inference.huggingface.co/models/Qwen/Qwen2.5-7B-Instruct/v1/chat/completions',
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
       },
-      {
-        role: 'user',
-        content: `Generate comprehensive unit tests for ${file.language} code from: ${repoName}\n\nFILE: ${file.path}\n\`\`\`${file.language}\n${file.content}\n\`\`\`\n\nREQUIREMENTS:\n1. Use ${framework}\n2. Test ALL functions/methods\n3. Include: happy path, edge cases, error handling\n4. Use mocking for dependencies\n5. Aim for >90% coverage\n6. Add descriptive test names\n\nGenerate ONLY executable test code with imports.`
-      }
-    ],
-    max_tokens: 2048,
-    temperature: 0.4,
-  });
+      body: JSON.stringify({
+        model: 'Qwen/Qwen2.5-7B-Instruct',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are an expert test engineer.'
+          },
+          {
+            role: 'user',
+            content: `Generate ${framework} tests for:\n\nFILE: ${file.path}\n\`\`\`${file.language}\n${file.content}\n\`\`\`\n\nInclude: happy path, edge cases, error handling. Generate ONLY test code with imports.`
+          }
+        ],
+        max_tokens: 2048,
+        temperature: 0.4,
+      }),
+    }
+  );
 
-  return response.choices[0].message.content;
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`HF API Error: ${response.status} - ${error}`);
+  }
+
+  const data = await response.json();
+  return data.choices[0].message.content;
 }
 
 export default async function handler(req, res) {

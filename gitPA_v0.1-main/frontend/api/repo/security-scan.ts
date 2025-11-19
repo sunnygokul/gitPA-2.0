@@ -212,7 +212,9 @@ export default async function handler(req, res) {
       allIssues.push(...fileIssues);
     }
 
-    const summary = categorizeIssues(allIssues);
+    // Filter: Only show CRITICAL and HIGH severity issues (ignore noise)
+    const filteredIssues = allIssues.filter(i => i.severity === 'CRITICAL' || i.severity === 'HIGH');
+    const summary = categorizeIssues(filteredIssues);
 
     // Calculate security score (0-100)
     const securityScore = Math.max(0, 100 - (
@@ -227,7 +229,7 @@ export default async function handler(req, res) {
       repoName: `${owner}/${repo}`,
       securityScore,
       summary,
-      issues: allIssues.sort((a, b) => {
+      issues: filteredIssues.sort((a, b) => {
         const severityOrder = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
         return severityOrder[a.severity] - severityOrder[b.severity];
       }),

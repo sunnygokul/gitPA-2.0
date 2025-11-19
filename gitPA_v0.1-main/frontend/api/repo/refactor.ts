@@ -156,7 +156,7 @@ async function getAIRefactoringSuggestions(files: any[], repoName: string) {
     .join('\n\n');
 
   const response = await fetch(
-    'https://api-inference.huggingface.co/models/Qwen/Qwen2.5-7B-Instruct',
+    'https://router.huggingface.co/v1/chat/completions',
     {
       method: 'POST',
       headers: {
@@ -164,12 +164,19 @@ async function getAIRefactoringSuggestions(files: any[], repoName: string) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        inputs: `You are an expert code refactoring specialist. Refactor ${repoName}:\n\n${codeContext}\n\nProvide 5-10 suggestions with: Type, Severity, Location, Problem, Solution, Benefits. Focus on: duplication, complexity, performance, security.`,
-        parameters: {
-          max_new_tokens: 2048,
-          temperature: 0.3,
-          return_full_text: false,
-        }
+        model: 'Qwen/Qwen2.5-7B-Instruct',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are an expert code refactoring specialist.'
+          },
+          {
+            role: 'user',
+            content: `Refactor ${repoName}:\n\n${codeContext}\n\nProvide 5-10 suggestions with: Type, Severity, Location, Problem, Solution, Benefits. Focus on: duplication, complexity, performance, security.`
+          }
+        ],
+        max_tokens: 2048,
+        temperature: 0.3,
       }),
     }
   );
@@ -180,7 +187,7 @@ async function getAIRefactoringSuggestions(files: any[], repoName: string) {
   }
 
   const data = await response.json();
-  return data[0]?.generated_text || data.generated_text || JSON.stringify(data);
+  return data.choices[0].message.content;
 }
 
 async function OLD_getAIRefactoringSuggestions_DELETE_THIS(files: any[], repoName: string) {

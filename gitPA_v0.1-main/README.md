@@ -51,11 +51,14 @@ An advanced web-based application that revolutionizes code analysis with compreh
 - **GitHub REST API** - Repository data fetching
 - **TypeScript** - Type-safe code
 
-### AI Capabilities
-- **Model**: Gemini 2.0 Flash Experimental
-- **Context Window**: 1 million tokens (~3000 pages of code)
-- **Cost**: FREE (1500 requests/day)
-- **Features**: Code analysis, test generation, security scanning, refactoring
+### AI Capabilities (Multi-Provider with Automatic Fallback)
+- **Primary**: Google Gemini 2.5 Flash (1M token context, 1,500 requests/day FREE)
+- **Fallback**: Groq Llama 3.3 70B (128K context, 14,400 requests/day FREE)
+- **Additional**: HuggingFace Qwen 2.5-7B (limited free tier)
+- **Total**: 477,000 FREE requests/month across all providers
+- **Features**: Enhanced code review with severity classifications, intelligent refactoring with file-by-file breakdown, automated test generation with downloadable ZIP, multi-file context reasoning
+
+👉 **See [AI_PROVIDERS.md](AI_PROVIDERS.md) for complete setup guide**
 
 ## Project Structure
 
@@ -77,10 +80,22 @@ gitPA_v0.1/
 3. Select scopes: `repo` or `public_repo`
 4. Copy the token
 
-#### Gemini API Key
-1. Go to https://aistudio.google.com/app/apikey
+#### AI Provider API Keys (All FREE)
+
+**Gemini (Primary - Recommended):**
+1. Go to https://aistudio.google.com/apikey
 2. Click "Create API Key"
-3. Copy the key (FREE - 1500 requests/day)
+3. Copy the key (FREE - 1,500 requests/day, 1M token context)
+
+**Groq (Fallback - Recommended):**
+1. Go to https://console.groq.com/
+2. Sign up and get API key
+3. Copy the key (FREE - 14,400 requests/day, ultra-fast)
+
+**HuggingFace (Optional):**
+1. Go to https://huggingface.co/settings/tokens
+2. Create new token
+3. Copy the key (FREE but very limited)
 
 ### 2. Deploy to Vercel (Recommended)
 
@@ -89,8 +104,12 @@ gitPA_v0.1/
 1. Click the button above
 2. Set environment variables in Vercel:
    - `GITHUB_TOKEN`: Your GitHub token
-   - `GEMINI_API_KEY`: Your Gemini API key
+   - `GEMINI_API_KEY`: Your Gemini API key (primary)
+   - `GROQ_API_KEY`: Your Groq API key (fallback)
+   - `HUGGINGFACE_API_KEY`: (Optional) HuggingFace key
 3. Deploy!
+
+**Note:** You only need GEMINI_API_KEY + GROQ_API_KEY for 16,000 free requests/day!
 
 ### 3. Local Development
 

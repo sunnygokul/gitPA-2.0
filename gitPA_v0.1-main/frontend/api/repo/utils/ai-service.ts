@@ -1,6 +1,10 @@
 /**
  * Multi-Provider AI Service
- * Supports HuggingFace (primary) and Google Gemini (fallback)
+ * Supports multiple FREE AI providers with automatic fallback:
+ * 1. Google Gemini 2.5 Flash (Primary - 1M context, 1500 RPD)
+ * 2. Groq Llama 3.3 70B (Fast fallback - 14.4K RPD)
+ * 3. HuggingFace (Additional fallback - limited free tier)
+ * 
  * Implements enhanced prompt format for Gitbot 2.0
  */
 
@@ -9,13 +13,74 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 interface AIProvider {
   name: string;
   available: boolean;
+  maxContext: number;
   call: (prompt: string, context: string) => Promise<string>;
 }
 
-const MAX_CONTEXT = 80000; // Max context size for API calls
+const MAX_CONTEXT_DEFAULT = 80000;
 
 /**
- * HuggingFace AI Provider
+ * Google Gemini 2.5 Flash - PRIMARY PROVIDER
+ * Best for code analysis with 1M token context window
+ * Rate Limits: 15 RPM, 1M TPM, 1,500 RPD (FREE)
+ */
+async function callGemini(prompt: string, context: string): Promise<string> {
+  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+  if (!apiKey) throw new Error('GEMINI_API_KEY not set');
+
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({ 
+    model: 'gemini-2.5-flash',
+    generationConfig: {
+      temperature: 0.3,
+      maxOutputTokens: 8192,
+    }
+  });
+
+  const fullPrompt = `${getSystemPrompt()}\n\n${context}\n\n${prompt}`;
+  const result = await model.generateContent(fullPrompt);
+  const response = result.response;
+  return response.text();
+}
+
+/**
+ * Groq (Llama 3.3 70B) - FAST FALLBACK
+ * Lightning-fast inference with LPU architecture
+ * Rate Limits: 30 RPM, 14,400 RPD (FREE)
+ */
+async function callGroq(prompt: string, context: string): Promise<string> {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) throw new Error('GROQ_API_KEY not set');
+
+  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: 'llama-3.3-70b-versatile',
+      messages: [
+        { role: 'system', content: getSystemPrompt() },
+        { role: 'user', content: `${context}\n\n${prompt}` }
+      ],
+      max_tokens: 8000,
+      temperature: 0.3,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Groq API Error: ${response.status} - ${error}`);
+  }
+
+  const data = await response.json();
+  return data.choices[0]?.message?.content || 'No response generated';
+}
+
+/**
+ * HuggingFace AI Provider - ADDITIONAL FALLBACK
+ * Multiple models available but limited free tier
  */
 async function callHuggingFace(prompt: string, context: string): Promise<string> {
   const apiKey = process.env.HUGGINGFACE_API_KEY;
@@ -45,28 +110,6 @@ async function callHuggingFace(prompt: string, context: string): Promise<string>
 
   const data = await response.json();
   return data.choices[0]?.message?.content || 'No response generated';
-}
-
-/**
- * Google Gemini AI Provider (Fallback)
- */
-async function callGemini(prompt: string, context: string): Promise<string> {
-  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-  if (!apiKey) throw new Error('GEMINI_API_KEY not set');
-
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ 
-    model: 'gemini-2.0-flash-exp',
-    generationConfig: {
-      temperature: 0.3,
-      maxOutputTokens: 8192,
-    }
-  });
-
-  const fullPrompt = `${getSystemPrompt()}\n\n${context}\n\n${prompt}`;
-  const result = await model.generateContent(fullPrompt);
-  const response = result.response;
-  return response.text();
 }
 
 /**
@@ -216,23 +259,27 @@ CRITICAL: Always use multi-file reasoning. Never analyze files in isolation.`;
 
 /**
  * Multi-provider AI call with automatic fallback
+ * Priority: Gemini > Groq > HuggingFace
  */
 export async function callAI(prompt: string, context: string): Promise<string> {
-  // Truncate context if too large
-  const truncatedContext = context.length > MAX_CONTEXT
-    ? context.substring(0, MAX_CONTEXT) + '\n\n[Context truncated due to size limits]'
-    : context;
-
   const providers: AIProvider[] = [
     {
-      name: 'HuggingFace',
-      available: !!process.env.HUGGINGFACE_API_KEY,
-      call: callHuggingFace
+      name: 'Google Gemini 2.5 Flash',
+      available: !!(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY),
+      maxContext: 1000000, // 1M tokens
+      call: callGemini
     },
     {
-      name: 'Google Gemini',
-      available: !!(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY),
-      call: callGemini
+      name: 'Groq (Llama 3.3 70B)',
+      available: !!process.env.GROQ_API_KEY,
+      maxContext: 128000, // 128K tokens
+      call: callGroq
+    },
+    {
+      name: 'HuggingFace (Qwen)',
+      available: !!process.env.HUGGINGFACE_API_KEY,
+      maxContext: 32000, // 32K tokens
+      call: callHuggingFace
     }
   ];
 
@@ -244,10 +291,15 @@ export async function callAI(prompt: string, context: string): Promise<string> {
       continue;
     }
 
+    // Truncate context based on provider's max context
+    const truncatedContext = context.length > provider.maxContext
+      ? context.substring(0, provider.maxContext) + '\n\n[Context truncated due to size limits]'
+      : context;
+
     try {
       console.log(`Attempting AI call with ${provider.name}...`);
       const result = await provider.call(prompt, truncatedContext);
-      console.log(`${provider.name}: Success`);
+      console.log(`${provider.name}: Success ✅`);
       return result;
     } catch (error: any) {
       lastError = error;

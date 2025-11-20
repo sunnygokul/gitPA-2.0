@@ -1,6 +1,7 @@
 import axios from 'axios';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { fetchRepoFiles } from './utils/github-api';
+import { validateGitHubUrl, validateRequiredFields } from './utils/validation';
 import type { CodeReviewRequestBody } from './types';
 
 interface CodeMetrics {
@@ -175,39 +176,41 @@ export default async function handler(
   req: VercelRequest,
   res: VercelResponse
 ): Promise<void> {
-  console.log('🔍 Code review endpoint called:', req.method);
-  
   if (req.method !== 'POST') {
     res.status(405).json({ status: 'error', message: 'Method not allowed' });
     return;
   }
 
   try {
-    const { repoUrl } = req.body as CodeReviewRequestBody;
-    console.log('📊 Processing code review for:', repoUrl);
+    // Validate request body
+    const bodyValidation = validateRequiredFields(req.body, ['repoUrl']);
+    if (!bodyValidation.valid) {
+      res.status(400).json({ status: 'error', message: bodyValidation.error });
+      return;
+    }
 
-    if (!repoUrl) {
-      res.status(400).json({ status: 'error', message: 'repoUrl is required' });
+    const { repoUrl } = req.body as CodeReviewRequestBody;
+
+    // Validate GitHub URL
+    const urlValidation = validateGitHubUrl(repoUrl);
+    if (!urlValidation.valid) {
+      res.status(400).json({ status: 'error', message: urlValidation.error });
       return;
     }
 
     const match = repoUrl.match(/github\.com\/([^/]+)\/([^/]+)/);
     if (!match) {
-      res.status(400).json({ status: 'error', message: 'Invalid GitHub URL' });
+      res.status(400).json({ status: 'error', message: 'Invalid GitHub URL format' });
       return;
     }
 
     const [, owner, repo] = match;
     const repoName = `${owner}/${repo}`;
-    console.log(`Performing code review for ${repoName}...`);
 
     const files = await fetchRepoFiles(owner, repo, { maxDepth: 10, maxFiles: 100, maxFileSize: 200000 });
-    console.log(`Analyzing ${files.length} files...`);
 
     const metrics = calculateMetrics(files);
     const dependencies = analyzeDependencies(files);
-
-    console.log('Generating AI-powered code review...');
     const aiReview = await getAICodeReview(files, metrics, dependencies, repoName);
 
     // Calculate quality scores

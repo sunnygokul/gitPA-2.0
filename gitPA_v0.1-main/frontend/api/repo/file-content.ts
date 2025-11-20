@@ -1,5 +1,6 @@
 import axios from 'axios';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { validateGitHubUrl, validateFilePath, validateRequiredFields } from './utils/validation';
 import type { FileContentRequestBody } from './types';
 
 export default async function handler(
@@ -7,10 +8,32 @@ export default async function handler(
   res: VercelResponse
 ): Promise<void> {
   try {
+    // Validate request body
+    const bodyValidation = validateRequiredFields(req.body, ['repoUrl', 'filePath']);
+    if (!bodyValidation.valid) {
+      res.status(400).json({ status: 'error', message: bodyValidation.error });
+      return;
+    }
+
     const { repoUrl, filePath } = req.body as FileContentRequestBody;
+
+    // Validate GitHub URL
+    const urlValidation = validateGitHubUrl(repoUrl);
+    if (!urlValidation.valid) {
+      res.status(400).json({ status: 'error', message: urlValidation.error });
+      return;
+    }
+
+    // Validate file path (prevent path traversal)
+    const pathValidation = validateFilePath(filePath);
+    if (!pathValidation.valid) {
+      res.status(400).json({ status: 'error', message: pathValidation.error });
+      return;
+    }
+
     const match = repoUrl.match(/github\.com\/([^/]+)\/([^/]+)/);
     if (!match) {
-      res.status(400).json({ status: 'error', message: 'Invalid GitHub URL' });
+      res.status(400).json({ status: 'error', message: 'Invalid GitHub URL format' });
       return;
     }
 

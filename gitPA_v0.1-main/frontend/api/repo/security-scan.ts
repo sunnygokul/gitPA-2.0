@@ -1,6 +1,7 @@
 import axios from 'axios';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { fetchRepoFiles } from './utils/github-api';
+import { validateGitHubUrl, validateRequiredFields } from './utils/validation';
 import type { SecurityScanRequestBody } from './types';
 
 interface SecurityIssue {
@@ -173,21 +174,29 @@ export default async function handler(
   }
 
   try {
+    // Validate request body
+    const bodyValidation = validateRequiredFields(req.body, ['repoUrl']);
+    if (!bodyValidation.valid) {
+      res.status(400).json({ status: 'error', message: bodyValidation.error });
+      return;
+    }
+
     const { repoUrl } = req.body as SecurityScanRequestBody;
 
-    if (!repoUrl) {
-      res.status(400).json({ status: 'error', message: 'repoUrl is required' });
+    // Validate GitHub URL
+    const urlValidation = validateGitHubUrl(repoUrl);
+    if (!urlValidation.valid) {
+      res.status(400).json({ status: 'error', message: urlValidation.error });
       return;
     }
 
     const match = repoUrl.match(/github\.com\/([^/]+)\/([^/]+)/);
     if (!match) {
-      res.status(400).json({ status: 'error', message: 'Invalid GitHub URL' });
+      res.status(400).json({ status: 'error', message: 'Invalid GitHub URL format' });
       return;
     }
 
     const [, owner, repo] = match;
-    console.log(`Security scanning ${owner}/${repo}...`);
 
     const files = await fetchRepoFiles(owner, repo, {
       maxDepth: 8,
@@ -195,7 +204,6 @@ export default async function handler(
       maxFileSize: 100000,
       fileExtensions: ['.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.cpp', '.c', '.cs', '.php', '.rb', '.go']
     });
-    console.log(`Scanning ${files.length} files for security issues...`);
 
     // Run basic pattern-based scan
     const allIssues: SecurityIssue[] = [];

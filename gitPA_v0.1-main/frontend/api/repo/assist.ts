@@ -1,5 +1,6 @@
 import axios from 'axios';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { validateGitHubUrl, validateQuery, validateRequiredFields } from './utils/validation';
 import type { AssistRequestBody } from './types';
 
 const MAX_FILES_IN_CONTEXT = 10; // Reduced to prevent token limit
@@ -130,23 +131,40 @@ export default async function handler(
   res: VercelResponse
 ): Promise<void> {
   try {
+    // Validate request body
+    const bodyValidation = validateRequiredFields(req.body, ['repoUrl', 'query']);
+    if (!bodyValidation.valid) {
+      res.status(400).json({ status: 'error', message: bodyValidation.error });
+      return;
+    }
+
     const { repoUrl, query } = req.body as AssistRequestBody;
+
+    // Validate GitHub URL
+    const urlValidation = validateGitHubUrl(repoUrl);
+    if (!urlValidation.valid) {
+      res.status(400).json({ status: 'error', message: urlValidation.error });
+      return;
+    }
+
+    // Validate query
+    const queryValidation = validateQuery(query);
+    if (!queryValidation.valid) {
+      res.status(400).json({ status: 'error', message: queryValidation.error });
+      return;
+    }
     
     const match = repoUrl.match(/github\.com\/([^/]+)\/([^/]+)/);
     if (!match) {
-      res.status(400).json({ status: 'error', message: 'Invalid GitHub URL' });
+      res.status(400).json({ status: 'error', message: 'Invalid GitHub URL format' });
       return;
     }
 
     const [, owner, repo] = match;
-
-    console.log(`Fetching files for ${owner}/${repo} to answer query: ${query}`);
     
     const allFiles = await fetchRepoFiles(owner, repo);
-    console.log(`Found ${allFiles.length} files in repository`);
     
     const relevantFiles = getRelevantFiles(allFiles, query);
-    console.log(`Selected ${relevantFiles.length} relevant files for context`);
     
     let context = relevantFiles
       .map(file => `File: ${file.path}\n\`\`\`\n${file.content}\n\`\`\``)

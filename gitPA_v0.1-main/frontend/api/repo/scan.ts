@@ -1,6 +1,7 @@
 import axios from 'axios';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { fetchRepoContents } from './utils/github-api';
+import { validateGitHubUrl, validateRequiredFields } from './utils/validation';
 import type { ScanRequestBody } from './types';
 
 export default async function handler(
@@ -8,10 +9,25 @@ export default async function handler(
   res: VercelResponse
 ): Promise<void> {
   try {
+    // Validate request body
+    const bodyValidation = validateRequiredFields(req.body, ['url']);
+    if (!bodyValidation.valid) {
+      res.status(400).json({ status: 'error', message: bodyValidation.error });
+      return;
+    }
+
     const { url } = req.body as ScanRequestBody;
+
+    // Validate GitHub URL
+    const urlValidation = validateGitHubUrl(url);
+    if (!urlValidation.valid) {
+      res.status(400).json({ status: 'error', message: urlValidation.error });
+      return;
+    }
+
     const match = url.match(/github\.com\/([^/]+)\/([^/]+)/);
     if (!match) {
-      res.status(400).json({ status: 'error', message: 'Invalid GitHub URL' });
+      res.status(400).json({ status: 'error', message: 'Invalid GitHub URL format' });
       return;
     }
 

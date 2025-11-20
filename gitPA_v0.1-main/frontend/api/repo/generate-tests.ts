@@ -1,6 +1,7 @@
 import axios from 'axios';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { fetchRepoFiles } from './utils/github-api';
+import { validateGitHubUrl, validateFilePath, validateRequiredFields } from './utils/validation';
 import type { TestGenerationRequestBody } from './types';
 
 function getLanguage(filename: string): string {
@@ -72,22 +73,39 @@ export default async function handler(
   }
 
   try {
+    // Validate request body
+    const bodyValidation = validateRequiredFields(req.body, ['repoUrl']);
+    if (!bodyValidation.valid) {
+      res.status(400).json({ status: 'error', message: bodyValidation.error });
+      return;
+    }
+
     const { repoUrl, filePath } = req.body as TestGenerationRequestBody;
 
-    if (!repoUrl) {
-      res.status(400).json({ status: 'error', message: 'repoUrl is required' });
+    // Validate GitHub URL
+    const urlValidation = validateGitHubUrl(repoUrl);
+    if (!urlValidation.valid) {
+      res.status(400).json({ status: 'error', message: urlValidation.error });
       return;
+    }
+
+    // Validate optional filePath if provided
+    if (filePath) {
+      const pathValidation = validateFilePath(filePath);
+      if (!pathValidation.valid) {
+        res.status(400).json({ status: 'error', message: pathValidation.error });
+        return;
+      }
     }
 
     const match = repoUrl.match(/github\.com\/([^/]+)\/([^/]+)/);
     if (!match) {
-      res.status(400).json({ status: 'error', message: 'Invalid GitHub URL' });
+      res.status(400).json({ status: 'error', message: 'Invalid GitHub URL format' });
       return;
     }
 
     const [, owner, repo] = match;
     const repoName = `${owner}/${repo}`;
-    console.log(`Generating tests for ${repoName}...`);
 
     const files = await fetchRepoFiles(owner, repo, {
       maxDepth: 10,
@@ -110,7 +128,6 @@ export default async function handler(
       ...f,
       language: getLanguage(f.name)
     })) as FileWithLanguage[];
-    console.log(`Found ${filesWithLanguage.length} testable files`);
 
     let targetFiles = filesWithLanguage;
     if (filePath) {
@@ -125,8 +142,6 @@ export default async function handler(
         .sort((a, b) => b.content.split('\n').length - a.content.split('\n').length)
         .slice(0, 5);
     }
-
-    console.log(`Generating tests for ${targetFiles.length} files...`);
 
     const testResults = [];
     for (const file of targetFiles) {

@@ -1,6 +1,7 @@
 import axios from 'axios';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { fetchRepoFiles } from './utils/github-api';
+import { validateGitHubUrl, validateRequiredFields } from './utils/validation';
 import type { RefactorRequestBody } from './types';
 
 interface RefactoringSuggestion {
@@ -170,22 +171,30 @@ export default async function handler(
   }
 
   try {
+    // Validate request body
+    const bodyValidation = validateRequiredFields(req.body, ['repoUrl']);
+    if (!bodyValidation.valid) {
+      res.status(400).json({ status: 'error', message: bodyValidation.error });
+      return;
+    }
+
     const { repoUrl } = req.body as RefactorRequestBody;
 
-    if (!repoUrl) {
-      res.status(400).json({ status: 'error', message: 'repoUrl is required' });
+    // Validate GitHub URL
+    const urlValidation = validateGitHubUrl(repoUrl);
+    if (!urlValidation.valid) {
+      res.status(400).json({ status: 'error', message: urlValidation.error });
       return;
     }
 
     const match = repoUrl.match(/github\.com\/([^/]+)\/([^/]+)/);
     if (!match) {
-      res.status(400).json({ status: 'error', message: 'Invalid GitHub URL' });
+      res.status(400).json({ status: 'error', message: 'Invalid GitHub URL format' });
       return;
     }
 
     const [, owner, repo] = match;
     const repoName = `${owner}/${repo}`;
-    console.log(`Analyzing refactoring opportunities for ${repoName}...`);
 
     const files = await fetchRepoFiles(owner, repo, {
       maxDepth: 8,
@@ -193,12 +202,9 @@ export default async function handler(
       maxFileSize: 150000,
       fileExtensions: ['.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.cpp', '.cs', '.php', '.rb', '.go']
     });
-    console.log(`Analyzing ${files.length} files for code smells...`);
 
     const automaticSuggestions = detectCodeSmells(files);
-    console.log(`Found ${automaticSuggestions.length} automatic suggestions`);
 
-    console.log('Getting AI-powered refactoring suggestions...');
     const aiSuggestions = await getAIRefactoringSuggestions(files, repoName);
 
     const stats = {

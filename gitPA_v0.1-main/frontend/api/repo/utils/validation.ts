@@ -21,9 +21,13 @@ export function validateGitHubUrl(url: unknown): ValidationResult {
     return { valid: false, error: 'Repository URL is too long (max 200 characters)' };
   }
 
-  // Validate GitHub URL format
-  const githubPattern = /^https?:\/\/github\.com\/[a-zA-Z0-9_-]+\/[a-zA-Z0-9_.-]+\/?$/;
-  if (!githubPattern.test(url)) {
+  // Validate GitHub URL format - allow various valid GitHub URL patterns
+  // Remove trailing slash if present for consistent validation
+  const cleanUrl = url.endsWith('/') ? url.slice(0, -1) : url;
+  
+  // Match github.com/owner/repo (with optional .git suffix)
+  const githubPattern = /^https?:\/\/github\.com\/[a-zA-Z0-9_-]+\/[a-zA-Z0-9_.-]+(\.git)?$/;
+  if (!githubPattern.test(cleanUrl)) {
     return { valid: false, error: 'Invalid GitHub URL format. Expected: https://github.com/owner/repo' };
   }
 

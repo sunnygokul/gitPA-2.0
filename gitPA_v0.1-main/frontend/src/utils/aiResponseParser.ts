@@ -374,6 +374,9 @@ export function parseAIResponse(content: string): ParsedAIResponse {
   if (parsed.dependencyRiskAnalysis) removeSection('Dependency Risk Analysis');
   if (parsed.performanceConcerns) removeSection('Performance Concerns');
   if (parsed.maintainabilityScore) removeSection('Maintainability Score');
+  
+  // Also remove [Actionable Response] header if present, but keep the content
+  removeSection('Actionable Response');
 
   // Clean up extra newlines
   cleanContent = cleanContent.replace(/\n{3,}/g, '\n\n').trim();

@@ -128,6 +128,13 @@ function getSystemPrompt(): string {
 ⚡ Cross-file Considerations
 <cross-file>
 
+Then, based on the user's request, provide ONE of the following sections:
+
+1. FOR GENERAL QUESTIONS (Default):
+[Actionable Response]
+<Direct answer to the question>
+
+2. FOR SECURITY SCANS (Only if requested):
 [Enhanced Code Review]
 🔴 CRITICAL ISSUES
 File: <path>
@@ -136,10 +143,7 @@ Attack Scenario: <scenario>
 Fix Recommendation: <fix>
 Impact Scope: <scope>
 
-🟠 HIGH RISK ISSUES
-File: <path>
-...
-
+3. FOR REFACTORING (Only if requested):
 [Intelligent Refactor Suggestions]
 1. File: <path>
    - Issue: <issue>
@@ -148,6 +152,7 @@ File: <path>
    - Security Implications: <implications>
    - Priority: HIGH
 
+4. FOR TESTS (Only if requested):
 [Automated Test Suite Generation]
 Test Case 1: <name>
 \`\`\`language

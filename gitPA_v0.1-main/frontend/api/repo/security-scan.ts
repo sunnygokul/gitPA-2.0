@@ -112,30 +112,34 @@ const SECURITY_PATTERNS = [
 ];
 
 async function fetchRepoFiles(owner: string, repo: string, path = '', files = [], depth = 0) {
-  if (depth > 10 || files.length >= 100) return files;
+  if (depth > 8 || files.length >= 75) return files;
 
-  const githubToken = process.env.GITHUB_TOKEN || '';
-  const response = await axios.get(
-    `https://api.github.com/repos/${owner}/${repo}/contents/${path}`,
-    { headers: { Authorization: `Bearer ${githubToken}`, Accept: 'application/vnd.github.v3+json' } }
-  );
+  try {
+    const githubToken = process.env.GITHUB_TOKEN || '';
+    const response = await axios.get(
+      `https://api.github.com/repos/${owner}/${repo}/contents/${path}`,
+      { headers: { Authorization: `Bearer ${githubToken}`, Accept: 'application/vnd.github.v3+json' } }
+    );
 
-  const items = Array.isArray(response.data) ? response.data : [response.data];
+    const items = Array.isArray(response.data) ? response.data : [response.data];
 
-  for (const item of items) {
-    if (item.type === 'file' && item.size < 100000) {
-      const extensions = ['.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.cpp', '.c', '.cs', '.php', '.rb', '.go'];
-      if (extensions.some(ext => item.name.endsWith(ext))) {
-        try {
-          const contentResponse = await axios.get(item.download_url);
-          files.push({ path: item.path, content: contentResponse.data, name: item.name });
-        } catch (err) {
-          console.error(`Failed to fetch ${item.path}:`, err.message);
+    for (const item of items) {
+      if (item.type === 'file' && item.size < 100000) {
+        const extensions = ['.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.cpp', '.c', '.cs', '.php', '.rb', '.go'];
+        if (extensions.some(ext => item.name.endsWith(ext))) {
+          try {
+            const contentResponse = await axios.get(item.download_url);
+            files.push({ path: item.path, content: contentResponse.data, name: item.name });
+          } catch (err) {
+            console.error(`Failed to fetch ${item.path}:`, err.message);
+          }
         }
+      } else if (item.type === 'dir') {
+        await fetchRepoFiles(owner, repo, item.path, files, depth + 1);
       }
-    } else if (item.type === 'dir') {
-      await fetchRepoFiles(owner, repo, item.path, files, depth + 1);
     }
+  } catch (error) {
+    console.error(`Error fetching repo contents at ${path}:`, error.message);
   }
 
   return files;

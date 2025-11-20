@@ -1,5 +1,6 @@
 import axios from 'axios';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { callAI } from './utils/ai-service.js';
 import type { AssistRequestBody } from './types.js';
 
 const MAX_FILES_IN_CONTEXT = 10; // Reduced to prevent token limit
@@ -87,43 +88,7 @@ function getRelevantFiles(allFiles: RepoFile[], query: string): RepoFile[] {
     .map(item => item.file);
 }
 
-async function getAIResponse(query: string, context: string, repoName: string) {
-  const apiKey = process.env.HUGGINGFACE_API_KEY || '';
 
-  const response = await fetch(
-    'https://router.huggingface.co/v1/chat/completions',
-    {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'Qwen/Qwen2.5-7B-Instruct',
-        messages: [
-          {
-            role: 'system',
-            content: `You are an expert code analysis AI analyzing: ${repoName}. ONLY answer based on provided files. Cite specific files.`
-          },
-          {
-            role: 'user',
-            content: `REPOSITORY FILES:\n${context}\n\nQUESTION: ${query}\n\nAnalyze based ONLY on files above.`
-          }
-        ],
-        max_tokens: 2048,
-        temperature: 0.3,
-      }),
-    }
-  );
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`HF API Error: ${response.status} - ${error}`);
-  }
-
-  const data = await response.json();
-  return data.choices[0].message.content;
-}
 
 export default async function handler(
   req: VercelRequest,
@@ -157,7 +122,8 @@ export default async function handler(
     }
     
     const repoName = `${owner}/${repo}`;
-    const response = await getAIResponse(query, context, repoName);
+    const prompt = `Repository: ${repoName}\n\nQUESTION: ${query}\n\nAnalyze based ONLY on the files provided. Cite specific files in your answer.`;
+    const response = await callAI(prompt, context);
     res.json({ status: 'success', response });
   } catch (error: unknown) {
     const err = error as any;

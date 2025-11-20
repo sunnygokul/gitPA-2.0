@@ -1,6 +1,7 @@
 import axios from 'axios';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { fetchRepoFiles } from './utils/github-api.js';
+import { generateTestCases } from './utils/ai-service.js';
 import type { TestGenerationRequestBody } from './types.js';
 
 function getLanguage(filename: string): string {
@@ -23,44 +24,7 @@ function getTestFramework(language: string): string {
   return frameworks[language] || 'appropriate testing framework';
 }
 
-async function generateTestsWithAI(file: any, repoName: string) {
-  const apiKey = process.env.HUGGINGFACE_API_KEY || '';
-  const framework = getTestFramework(file.language);
 
-  const response = await fetch(
-    'https://router.huggingface.co/v1/chat/completions',
-    {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'Qwen/Qwen2.5-7B-Instruct',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are an expert test engineer.'
-          },
-          {
-            role: 'user',
-            content: `Generate ${framework} tests for:\n\nFILE: ${file.path}\n\`\`\`${file.language}\n${file.content}\n\`\`\`\n\nInclude: happy path, edge cases, error handling. Generate ONLY test code with imports.`
-          }
-        ],
-        max_tokens: 2048,
-        temperature: 0.4,
-      }),
-    }
-  );
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`HF API Error: ${response.status} - ${error}`);
-  }
-
-  const data = await response.json();
-  return data.choices[0].message.content;
-}
 
 export default async function handler(
   req: VercelRequest,
@@ -127,7 +91,7 @@ export default async function handler(
     const testResults = [];
     for (const file of targetFiles) {
       try {
-        const testCode = await generateTestsWithAI(file, repoName);
+        const testCode = await generateTestCases([file], file.path, file.language);
         const testFileName = generateTestFileName(file.name, file.language);
         
         testResults.push({

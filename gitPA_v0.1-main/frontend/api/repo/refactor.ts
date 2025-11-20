@@ -1,6 +1,7 @@
 import axios from 'axios';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { fetchRepoFiles } from './utils/github-api.js';
+import { generateRefactoringSuggestions } from './utils/ai-service.js';
 import type { RefactorRequestBody } from './types.js';
 
 interface RefactoringSuggestion {
@@ -195,7 +196,7 @@ export default async function handler(
 
     const automaticSuggestions = detectCodeSmells(files);
 
-    const aiSuggestions = await getAIRefactoringSuggestions(files, repoName);
+    const aiSuggestions = await generateRefactoringSuggestions(files, automaticSuggestions, repoName);
 
     const stats = {
       highPriority: automaticSuggestions.filter(s => s.severity === 'High').length,

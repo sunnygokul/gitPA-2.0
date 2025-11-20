@@ -1,6 +1,7 @@
 import axios from 'axios';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { fetchRepoFiles } from './utils/github-api.js';
+import { generateCodeReview } from './utils/ai-service.js';
 import type { CodeReviewRequestBody } from './types.js';
 
 interface CodeMetrics {
@@ -119,58 +120,6 @@ function analyzeDependencies(files: any[]): DependencyInfo[] {
   return dependencies;
 }
 
-async function getAICodeReview(files: any[], metrics: CodeMetrics, dependencies: DependencyInfo[], repoName: string) {
-  const apiKey = process.env.HUGGINGFACE_API_KEY || '';
-  
-  // Sample key files for review
-  const keyFiles = files
-    .sort((a, b) => {
-      const aLen = typeof a.content === 'string' ? a.content.length : 0;
-      const bLen = typeof b.content === 'string' ? b.content.length : 0;
-      return bLen - aLen;
-    })
-    .slice(0, 8)
-    .map(f => {
-      const content = typeof f.content === 'string' ? f.content : String(f.content || '');
-      return `File: ${f.path}\n\`\`\`\n${content.substring(0, 3000)}\n\`\`\``;
-    })
-    .join('\n\n');
-
-  const response = await fetch(
-    'https://router.huggingface.co/v1/chat/completions',
-    {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'Qwen/Qwen2.5-7B-Instruct',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are an expert software architect with deep knowledge of design patterns, SOLID principles, and best practices.'
-          },
-          {
-            role: 'user',
-            content: `Review ${repoName}:\n\nMETRICS: ${metrics.totalFiles} files, ${metrics.totalLines} lines\n\nKEY FILES:\n${keyFiles}\n\nAnalyze: architecture, quality, security, performance, technical debt. Provide actionable recommendations.`
-          }
-        ],
-        max_tokens: 2048,
-        temperature: 0.4,
-      }),
-    }
-  );
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`HF API Error: ${response.status} - ${error}`);
-  }
-
-  const data = await response.json();
-  return data.choices[0].message.content;
-}
-
 export default async function handler(
   req: VercelRequest,
   res: VercelResponse
@@ -201,7 +150,9 @@ export default async function handler(
 
     const metrics = calculateMetrics(files);
     const dependencies = analyzeDependencies(files);
-    const aiReview = await getAICodeReview(files, metrics, dependencies, repoName);
+    
+    // Use new multi-provider AI service with enhanced prompt format
+    const aiReview = await generateCodeReview(files, metrics, dependencies, repoName);
 
     // Calculate quality scores
     const commentRatio = metrics.commentLines / metrics.codeLines;

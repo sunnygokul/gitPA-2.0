@@ -34,9 +34,10 @@
       :performance="parsed.performanceConcerns"
     />
     
-    <!-- Only show remaining content if it exists and isn't just whitespace -->
-    <div v-if="parsed.additionalContent && parsed.additionalContent.length > 10" class="bg-[#161b22] rounded-lg border border-[#30363d] p-6">
-      <MarkdownRenderer :content="parsed.additionalContent" />
+    <!-- NUCLEAR OPTION: Hide raw content completely if ANY structured content was found.
+         This prevents the "duplicate text" issue the user is complaining about. -->
+    <div v-if="!parsed.hasStructuredContent && parsed.rawContent" class="bg-[#161b22] rounded-lg border border-[#30363d] p-6">
+      <MarkdownRenderer :content="parsed.rawContent" />
     </div>
   </div>
 </template>

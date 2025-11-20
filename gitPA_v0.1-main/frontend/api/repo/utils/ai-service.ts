@@ -304,7 +304,8 @@ export async function generateTestCases(
   targetFile: string,
   language: string
 ): Promise<string> {
-  const context = buildFileContext(files);
+  // Use larger context for test generation to ensure AI sees enough code
+  const context = buildFileContext(files, { maxFileSize: 2000 });
   
   const prompt = `Generate 5 HIGH-QUALITY TEST CASES for file: ${targetFile}
 
@@ -332,9 +333,9 @@ Begin test generation:`;
  * Build file context for AI
  * DRASTICALLY REDUCED for 3-5 second responses
  */
-function buildFileContext(files: any[]): string {
+function buildFileContext(files: any[], options: { maxFileSize?: number } = {}): string {
   const MAX_FILES = 3; // Only 3 files for speed
-  const MAX_FILE_SIZE = 500; // Very small excerpts
+  const MAX_FILE_SIZE = options.maxFileSize || 500; // Default small, but overrideable
   
   const limitedFiles = files.slice(0, MAX_FILES);
   

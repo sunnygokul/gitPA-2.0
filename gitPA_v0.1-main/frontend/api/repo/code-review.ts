@@ -261,14 +261,27 @@ export default async function handler(req, res) {
       response: error?.response?.data,
       status: error?.response?.status,
       apiKeySet: !!process.env.HUGGINGFACE_API_KEY,
-      apiKeyLength: process.env.HUGGINGFACE_API_KEY?.length || 0
+      apiKeyPrefix: process.env.HUGGINGFACE_API_KEY ? process.env.HUGGINGFACE_API_KEY.substring(0, 7) + '...' : 'NOT SET'
     });
+    
+    // Check if it's an API key issue
+    if (!process.env.HUGGINGFACE_API_KEY) {
+      return res.status(500).json({ 
+        status: 'error', 
+        message: 'HUGGINGFACE_API_KEY environment variable is not set. Please configure it in Vercel dashboard under Settings > Environment Variables.',
+        debug: { 
+          apiKeySet: false,
+          hint: 'Get your API key from https://huggingface.co/settings/tokens'
+        } 
+      });
+    }
+    
     const safeMessage = error?.response?.data?.error || error?.message || 'Code review failed';
     res.status(500).json({ 
       status: 'error', 
       message: String(safeMessage), 
       debug: { 
-        apiKeySet: !!process.env.HUGGINGFACE_API_KEY,
+        apiKeySet: true,
         errorType: error?.constructor?.name
       } 
     });

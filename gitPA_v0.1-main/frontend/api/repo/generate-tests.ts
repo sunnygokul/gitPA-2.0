@@ -1,7 +1,6 @@
 import axios from 'axios';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { fetchRepoFiles } from './utils/github-api';
-import { validateGitHubUrl, validateFilePath, validateRequiredFields } from './utils/validation';
 import type { TestGenerationRequestBody } from './types';
 
 function getLanguage(filename: string): string {
@@ -73,34 +72,16 @@ export default async function handler(
   }
 
   try {
-    // Validate request body
-    const bodyValidation = validateRequiredFields(req.body, ['repoUrl']);
-    if (!bodyValidation.valid) {
-      res.status(400).json({ status: 'error', message: bodyValidation.error });
-      return;
-    }
-
     const { repoUrl, filePath } = req.body as TestGenerationRequestBody;
 
-    // Validate GitHub URL
-    const urlValidation = validateGitHubUrl(repoUrl);
-    if (!urlValidation.valid) {
-      res.status(400).json({ status: 'error', message: urlValidation.error });
+    if (!repoUrl) {
+      res.status(400).json({ status: 'error', message: 'repoUrl is required' });
       return;
-    }
-
-    // Validate optional filePath if provided
-    if (filePath) {
-      const pathValidation = validateFilePath(filePath);
-      if (!pathValidation.valid) {
-        res.status(400).json({ status: 'error', message: pathValidation.error });
-        return;
-      }
     }
 
     const match = repoUrl.match(/github\.com\/([^/]+)\/([^/]+)/);
     if (!match) {
-      res.status(400).json({ status: 'error', message: 'Invalid GitHub URL format' });
+      res.status(400).json({ status: 'error', message: 'Invalid GitHub URL' });
       return;
     }
 

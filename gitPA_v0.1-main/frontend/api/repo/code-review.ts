@@ -1,7 +1,6 @@
 import axios from 'axios';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { fetchRepoFiles } from './utils/github-api';
-import { validateGitHubUrl, validateRequiredFields } from './utils/validation';
 import type { CodeReviewRequestBody } from './types';
 
 interface CodeMetrics {
@@ -182,25 +181,16 @@ export default async function handler(
   }
 
   try {
-    // Validate request body
-    const bodyValidation = validateRequiredFields(req.body, ['repoUrl']);
-    if (!bodyValidation.valid) {
-      res.status(400).json({ status: 'error', message: bodyValidation.error });
-      return;
-    }
-
     const { repoUrl } = req.body as CodeReviewRequestBody;
 
-    // Validate GitHub URL
-    const urlValidation = validateGitHubUrl(repoUrl);
-    if (!urlValidation.valid) {
-      res.status(400).json({ status: 'error', message: urlValidation.error });
+    if (!repoUrl) {
+      res.status(400).json({ status: 'error', message: 'repoUrl is required' });
       return;
     }
 
     const match = repoUrl.match(/github\.com\/([^/]+)\/([^/]+)/);
     if (!match) {
-      res.status(400).json({ status: 'error', message: 'Invalid GitHub URL format' });
+      res.status(400).json({ status: 'error', message: 'Invalid GitHub URL' });
       return;
     }
 

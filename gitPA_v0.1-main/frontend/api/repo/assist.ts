@@ -1,9 +1,9 @@
 // @ts-nocheck
 import axios from 'axios';
 
-const MAX_FILES_IN_CONTEXT = 25; // Qwen handles large context well
-const MAX_TOTAL_CONTEXT_SIZE = 600000; // 32K token context
-const MAX_FILE_SIZE = 100000;
+const MAX_FILES_IN_CONTEXT = 10; // Reduced to prevent token limit
+const MAX_TOTAL_CONTEXT_SIZE = 80000; // ~20K tokens (4 chars per token)
+const MAX_FILE_SIZE = 8000; // Smaller file excerpts
 
 async function fetchRepoFiles(owner: string, repo: string, path = '', files = []) {
   try {

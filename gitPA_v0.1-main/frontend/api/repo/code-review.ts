@@ -34,10 +34,13 @@ async function fetchRepoFiles(owner: string, repo: string, path = '', files = []
     for (const item of items) {
       if (item.type === 'file' && item.size < 200000) {
         try {
-          const contentResponse = await axios.get(item.download_url);
+          const contentResponse = await axios.get(item.download_url, { responseType: 'text' });
+          const content = typeof contentResponse.data === 'string' 
+            ? contentResponse.data 
+            : String(contentResponse.data || '');
           files.push({ 
             path: item.path, 
-            content: contentResponse.data, 
+            content: content, 
             name: item.name,
             size: item.size
           });
@@ -64,7 +67,9 @@ function calculateMetrics(files: any[]): CodeMetrics {
   const languageDistribution: Record<string, number> = {};
 
   for (const file of files) {
-    const lines = file.content.split('\n');
+    // Ensure content is string
+    const content = typeof file.content === 'string' ? file.content : String(file.content || '');
+    const lines = content.split('\n');
     const fileLines = lines.length;
     totalLines += fileLines;
 
@@ -109,8 +114,11 @@ function analyzeDependencies(files: any[]): DependencyInfo[] {
     const exports: string[] = [];
     const externalDependencies: string[] = [];
 
+    // Ensure content is string
+    const content = typeof file.content === 'string' ? file.content : String(file.content || '');
+
     // JavaScript/TypeScript imports
-    const importMatches = file.content.matchAll(/import\s+(?:{[^}]+}|[\w*]+)\s+from\s+['"]([^'"]+)['"]/g);
+    const importMatches = content.matchAll(/import\s+(?:{[^}]+}|[\w*]+)\s+from\s+['"]([^'"]+)['"]‌/g);
     for (const match of importMatches) {
       const importPath = match[1];
       imports.push(importPath);
@@ -120,7 +128,7 @@ function analyzeDependencies(files: any[]): DependencyInfo[] {
     }
 
     // Python imports
-    const pyImportMatches = file.content.matchAll(/(?:from\s+(\S+)\s+)?import\s+([^\n]+)/g);
+    const pyImportMatches = content.matchAll(/(?:from\s+(\S+)\s+)?import\s+([^\n]+)/g);
     for (const match of pyImportMatches) {
       const module = match[1] || match[2].split(',')[0].trim();
       imports.push(module);
@@ -130,7 +138,7 @@ function analyzeDependencies(files: any[]): DependencyInfo[] {
     }
 
     // Exports
-    const exportMatches = file.content.matchAll(/export\s+(?:default\s+)?(?:class|function|const|let|var)\s+(\w+)/g);
+    const exportMatches = content.matchAll(/export\s+(?:default\s+)?(?:class|function|const|let|var)\s+(\w+)/g);
     for (const match of exportMatches) {
       exports.push(match[1]);
     }
@@ -153,9 +161,16 @@ async function getAICodeReview(files: any[], metrics: CodeMetrics, dependencies:
   
   // Sample key files for review
   const keyFiles = files
-    .sort((a, b) => b.content.length - a.content.length)
+    .sort((a, b) => {
+      const aLen = typeof a.content === 'string' ? a.content.length : 0;
+      const bLen = typeof b.content === 'string' ? b.content.length : 0;
+      return bLen - aLen;
+    })
     .slice(0, 8)
-    .map(f => `File: ${f.path}\n\`\`\`\n${f.content.substring(0, 3000)}\n\`\`\``)
+    .map(f => {
+      const content = typeof f.content === 'string' ? f.content : String(f.content || '');
+      return `File: ${f.path}\n\`\`\`\n${content.substring(0, 3000)}\n\`\`\``;
+    })
     .join('\n\n');
 
   const response = await fetch(

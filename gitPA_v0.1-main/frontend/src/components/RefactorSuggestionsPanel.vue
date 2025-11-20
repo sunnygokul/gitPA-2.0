@@ -28,10 +28,10 @@
             <h5 class="text-sm font-semibold text-[#c9d1d9] mb-2">{{ suggestion.title }}</h5>
           </div>
 
-          <!-- Issue / Description (Clean display - parse out redundant text) -->
-          <div v-if="getCleanIssue(suggestion)">
+          <!-- Issue / Description -->
+          <div v-if="suggestion.issue || suggestion.description">
             <h5 class="text-xs font-semibold text-[#8b949e] mb-1">🔍 Issue</h5>
-            <p class="text-sm text-[#c9d1d9]">{{ getCleanIssue(suggestion) }}</p>
+            <p class="text-sm text-[#c9d1d9]">{{ suggestion.issue || suggestion.description }}</p>
           </div>
 
           <!-- Before Code -->
@@ -40,35 +40,29 @@
             <pre class="text-xs text-[#c9d1d9] overflow-x-auto"><code>{{ suggestion.before }}</code></pre>
           </div>
 
-          <!-- Recommendation (Clean display) -->
-          <div v-if="getCleanRecommendation(suggestion)">
-            <h5 class="text-xs font-semibold text-[#8b949e] mb-1">💡 Recommendation</h5>
+          <!-- After / Recommendation -->
+          <div v-if="suggestion.after || suggestion.recommendation">
+            <h5 class="text-xs font-semibold text-[#8b949e] mb-1">💡 {{ suggestion.after ? 'After' : 'Recommendation' }}</h5>
             <pre v-if="suggestion.after" class="text-xs text-[#3fb950] bg-[#161b22] rounded p-3 border border-[#30363d] overflow-x-auto"><code>{{ suggestion.after }}</code></pre>
-            <p v-else class="text-sm text-[#c9d1d9]">{{ getCleanRecommendation(suggestion) }}</p>
+            <p v-else class="text-sm text-[#c9d1d9]">{{ suggestion.recommendation }}</p>
           </div>
 
-          <!-- Benefits (Clean display) -->
-          <div v-if="getCleanBenefits(suggestion)">
-            <div class="bg-[#161b22] rounded p-3 border border-[#30363d]">
-              <h5 class="text-xs font-semibold text-[#3fb950] mb-1">✨ Benefits</h5>
-              <p class="text-sm text-[#8b949e]">{{ getCleanBenefits(suggestion) }}</p>
-            </div>
+          <!-- Benefits -->
+          <div v-if="suggestion.benefits" class="bg-[#161b22] rounded p-3 border border-[#30363d]">
+            <h5 class="text-xs font-semibold text-[#3fb950] mb-1">✨ Benefits</h5>
+            <p class="text-sm text-[#8b949e]">{{ suggestion.benefits }}</p>
           </div>
 
-          <!-- Impact (Clean display - only if not already in benefits) -->
-          <div v-if="getCleanImpact(suggestion)">
-            <div class="bg-[#161b22] rounded p-3 border border-[#30363d]">
-              <h5 class="text-xs font-semibold text-[#d29922] mb-1">🎯 Impact on Other Files</h5>
-              <p class="text-sm text-[#8b949e]">{{ getCleanImpact(suggestion) }}</p>
-            </div>
+          <!-- Impact on Other Files -->
+          <div v-if="suggestion.impactOnOtherFiles && suggestion.impactOnOtherFiles.toLowerCase() !== 'none'" class="bg-[#161b22] rounded p-3 border border-[#30363d]">
+            <h5 class="text-xs font-semibold text-[#d29922] mb-1">🎯 Impact on Other Files</h5>
+            <p class="text-sm text-[#8b949e]">{{ suggestion.impactOnOtherFiles }}</p>
           </div>
 
-          <!-- Security (Clean display - only if not already in benefits) -->
-          <div v-if="getCleanSecurity(suggestion)">
-            <div class="bg-[#161b22] rounded p-3 border border-[#30363d]">
-              <h5 class="text-xs font-semibold text-[#f85149] mb-1">🔒 Security Implications</h5>
-              <p class="text-sm text-[#8b949e]">{{ getCleanSecurity(suggestion) }}</p>
-            </div>
+          <!-- Security Implications -->
+          <div v-if="suggestion.securityImplications && suggestion.securityImplications.toLowerCase() !== 'none'" class="bg-[#161b22] rounded p-3 border border-[#30363d]">
+            <h5 class="text-xs font-semibold text-[#f85149] mb-1">🔒 Security Implications</h5>
+            <p class="text-sm text-[#8b949e]">{{ suggestion.securityImplications }}</p>
           </div>
         </div>
       </div>
@@ -99,42 +93,4 @@ function getPriorityClass(priority: string | undefined): string {
   }
 }
 
-// Clean up duplicate/redundant text
-function getCleanIssue(suggestion: any): string {
-  const issue = suggestion.issue || suggestion.description || '';
-  // Remove everything after " - Refactor Recommendation:" to avoid duplication
-  return issue.split(' - Refactor Recommendation:')[0].trim();
-}
-
-function getCleanRecommendation(suggestion: any): string {
-  const rec = suggestion.recommendation || suggestion.after || '';
-  // Remove everything after " - Impact on Other Files:" to avoid duplication
-  return rec.split(' - Impact on Other Files:')[0].trim();
-}
-
-function getCleanBenefits(suggestion: any): string {
-  const benefits = suggestion.benefits || '';
-  // Only show if it doesn't contain redundant info
-  if (benefits.includes('Security Implications:') || benefits.includes('Impact on Other Files:')) {
-    // Extract just the benefits part
-    return benefits.split(' - Security Implications:')[0].split(' - Impact on Other Files:')[0].replace('Expected Benefits:', '').trim();
-  }
-  return benefits;
-}
-
-function getCleanImpact(suggestion: any): string {
-  const impact = suggestion.impactOnOtherFiles || '';
-  // Remove security implications if present
-  const clean = impact.split(' - Security Implications:')[0].split(' - Expected Benefits:')[0].trim();
-  // Only show if meaningful and not "None"
-  return clean && clean.toLowerCase() !== 'none' ? clean : '';
-}
-
-function getCleanSecurity(suggestion: any): string {
-  const security = suggestion.securityImplications || '';
-  // Remove expected benefits if present
-  const clean = security.split(' - Expected Benefits:')[0].trim();
-  // Only show if meaningful and not "None"
-  return clean && clean.toLowerCase() !== 'none' ? clean : '';
-}
 </script>

@@ -145,6 +145,10 @@ export const useRepoStore = defineStore('repo', {
         this.codeReview = response.data;
         
         // Pass complete AI review for enhanced UI parsing
+        // Remove Multi-file Context from AI review
+        let cleanedReview = response.data.aiReview || '';
+        cleanedReview = cleanedReview.replace(/\[Multi-file Context Reasoning\][\s\S]*?(?=\[Enhanced Code Review\]|$)/gi, '');
+        
         const fullReview = `📊 **Code Review Complete**\n\n` +
           `**Overall Score:** ${response.data.overallScore}/100\n\n` +
           `**Detailed Scores:**\n\n` +
@@ -152,7 +156,7 @@ export const useRepoStore = defineStore('repo', {
           `- Maintainability: ${response.data.scores.maintainability}/100\n` +
           `- Dependencies: ${response.data.scores.dependencies}/100\n\n` +
           `---\n\n` +
-          `${response.data.aiReview || ''}`;
+          `${cleanedReview}`;
         
         this.messages.push({
           id: Date.now().toString(),

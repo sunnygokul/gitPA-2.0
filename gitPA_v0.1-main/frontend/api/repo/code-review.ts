@@ -146,7 +146,12 @@ export default async function handler(
     const [, owner, repo] = match;
     const repoName = `${owner}/${repo}`;
 
-    const files = await fetchRepoFiles(owner, repo, { maxDepth: 10, maxFiles: 100, maxFileSize: 200000 });
+    const files = await fetchRepoFiles(owner, repo, { 
+      maxDepth: 10, 
+      maxFiles: 100, 
+      maxFileSize: 200000,
+      fileExtensions: ['.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.cpp', '.cs', '.php', '.rb', '.go', '.vue', '.html', '.css']
+    });
 
     const metrics = calculateMetrics(files);
     const dependencies = analyzeDependencies(files);

@@ -21,11 +21,19 @@ export interface SecurityIssue {
 
 export interface RefactorSuggestion {
   file: string;
-  issue: string;
-  recommendation: string;
+  issue?: string;
+  recommendation?: string;
   impactOnOtherFiles?: string;
   securityImplications?: string;
   priority?: 'HIGH' | 'MEDIUM' | 'LOW';
+  // Additional fields from API response
+  severity?: 'High' | 'Medium' | 'Low';
+  title?: string;
+  description?: string;
+  before?: string;
+  after?: string;
+  benefits?: string;
+  type?: string;
 }
 
 export interface TestCase {

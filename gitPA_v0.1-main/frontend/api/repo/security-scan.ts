@@ -124,6 +124,7 @@ const SECURITY_PATTERNS: SecurityPattern[] = [
 function scanFile(file: { path: string; content: string; name: string }): SecurityIssue[] {
   const issues: SecurityIssue[] = [];
   const lines = file.content.split('\n');
+  const seen = new Set<string>(); // Deduplicate by file + type + line
 
   for (const pattern of SECURITY_PATTERNS) {
     const matches = file.content.matchAll(pattern.pattern);
@@ -131,6 +132,10 @@ function scanFile(file: { path: string; content: string; name: string }): Securi
       // Find line number
       const position = match.index || 0;
       const lineNumber = file.content.substring(0, position).split('\n').length;
+
+      const key = `${file.path}:${pattern.type}:${lineNumber}`;
+      if (seen.has(key)) continue; // Skip duplicates
+      seen.add(key);
 
       issues.push({
         file: file.path,

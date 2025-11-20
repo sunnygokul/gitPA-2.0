@@ -205,11 +205,23 @@ export default async function handler(
       total: automaticSuggestions.length
     };
 
+    // Combine both automatic and AI suggestions
+    const allSuggestions = automaticSuggestions.map(s => ({
+      file: s.file,
+      severity: s.severity,
+      title: s.title,
+      description: s.description,
+      before: s.before,
+      after: s.after,
+      benefits: s.benefits.join(', '),
+      type: s.type
+    }));
+
     res.json({
       status: 'success',
       repoName,
       stats,
-      suggestions: automaticSuggestions.sort((a, b) => {
+      suggestions: allSuggestions.sort((a, b) => {
         const severityOrder = { High: 0, Medium: 1, Low: 2 };
         return severityOrder[a.severity] - severityOrder[b.severity];
       }),

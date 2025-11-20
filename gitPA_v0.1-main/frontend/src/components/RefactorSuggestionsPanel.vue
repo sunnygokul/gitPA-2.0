@@ -12,24 +12,45 @@
       <div v-for="(suggestion, idx) in suggestions" :key="idx" class="bg-[#0d1117] rounded-lg border border-[#30363d] p-4">
         <div class="flex items-start justify-between mb-3">
           <div class="flex items-center space-x-3">
-            <span v-if="suggestion.priority" class="text-xs font-mono px-2 py-1 rounded" :class="getPriorityClass(suggestion.priority)">
-              {{ suggestion.priority }}
+            <span v-if="suggestion.severity || suggestion.priority" class="text-xs font-mono px-2 py-1 rounded" :class="getPriorityClass(suggestion.severity || suggestion.priority)">
+              {{ suggestion.severity || suggestion.priority }}
+            </span>
+            <span v-if="suggestion.type" class="text-xs px-2 py-1 rounded bg-[#161b22] text-[#a371f7] border border-[#30363d]">
+              {{ suggestion.type }}
             </span>
             <span class="text-sm font-medium text-[#58a6ff]">{{ suggestion.file }}</span>
           </div>
         </div>
 
         <div class="space-y-3">
-          <!-- Issue -->
-          <div>
-            <h5 class="text-xs font-semibold text-[#8b949e] mb-1">🔍 Issue</h5>
-            <p class="text-sm text-[#c9d1d9]">{{ suggestion.issue }}</p>
+          <!-- Title -->
+          <div v-if="suggestion.title">
+            <h5 class="text-sm font-semibold text-[#c9d1d9]">{{ suggestion.title }}</h5>
           </div>
 
-          <!-- Recommendation -->
-          <div>
-            <h5 class="text-xs font-semibold text-[#8b949e] mb-1">💡 Recommendation</h5>
-            <p class="text-sm text-[#c9d1d9]">{{ suggestion.recommendation }}</p>
+          <!-- Issue / Description -->
+          <div v-if="suggestion.issue || suggestion.description">
+            <h5 class="text-xs font-semibold text-[#8b949e] mb-1">🔍 Issue</h5>
+            <p class="text-sm text-[#c9d1d9]">{{ suggestion.issue || suggestion.description }}</p>
+          </div>
+
+          <!-- Before Code -->
+          <div v-if="suggestion.before" class="bg-[#161b22] rounded p-3 border border-[#30363d]">
+            <h5 class="text-xs font-semibold text-[#8b949e] mb-2">❌ Before</h5>
+            <pre class="text-xs text-[#c9d1d9] overflow-x-auto"><code>{{ suggestion.before }}</code></pre>
+          </div>
+
+          <!-- After / Recommendation -->
+          <div v-if="suggestion.after || suggestion.recommendation">
+            <h5 class="text-xs font-semibold text-[#8b949e] mb-1">💡 {{ suggestion.after ? 'After' : 'Recommendation' }}</h5>
+            <pre v-if="suggestion.after" class="text-xs text-[#3fb950] bg-[#161b22] rounded p-3 border border-[#30363d] overflow-x-auto"><code>{{ suggestion.after }}</code></pre>
+            <p v-else class="text-sm text-[#c9d1d9]">{{ suggestion.recommendation }}</p>
+          </div>
+
+          <!-- Benefits -->
+          <div v-if="suggestion.benefits" class="bg-[#161b22] rounded p-3 border border-[#30363d]">
+            <h5 class="text-xs font-semibold text-[#3fb950] mb-1">✨ Benefits</h5>
+            <p class="text-sm text-[#8b949e]">{{ suggestion.benefits }}</p>
           </div>
 
           <!-- Impact on Other Files -->
@@ -56,12 +77,19 @@ defineProps<{
   suggestions: RefactorSuggestion[] | undefined;
 }>();
 
-function getPriorityClass(priority: string): string {
-  switch (priority) {
-    case 'HIGH': return 'bg-[#f851491a] text-[#f85149]';
-    case 'MEDIUM': return 'bg-[#d299221a] text-[#d29922]';
-    case 'LOW': return 'bg-[#3fb9501a] text-[#3fb950]';
-    default: return 'bg-[#30363d] text-[#8b949e]';
+function getPriorityClass(priority: string | undefined): string {
+  if (!priority) return 'bg-[#30363d] text-[#8b949e]';
+  const p = priority.toUpperCase();
+  switch (p) {
+    case 'HIGH': 
+    case 'CRITICAL': 
+      return 'bg-[#f851491a] text-[#f85149]';
+    case 'MEDIUM': 
+      return 'bg-[#d299221a] text-[#d29922]';
+    case 'LOW': 
+      return 'bg-[#3fb9501a] text-[#3fb950]';
+    default: 
+      return 'bg-[#30363d] text-[#8b949e]';
   }
 }
 </script>

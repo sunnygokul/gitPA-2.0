@@ -122,7 +122,7 @@ export default async function handler(
     }
     
     const repoName = `${owner}/${repo}`;
-    const prompt = `Repository: ${repoName}\n\nQUESTION: ${query}\n\nAnalyze based ONLY on the files provided. Cite specific files in your answer.`;
+    const prompt = `You are a helpful coding assistant. Answer this question about the ${repoName} repository: "${query}"\n\nGive a SIMPLE, DIRECT answer. No complex formatting. Just answer the question naturally.`;
     const response = await callAI(prompt, context);
     res.json({ status: 'success', response });
   } catch (error: unknown) {

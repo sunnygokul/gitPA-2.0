@@ -115,30 +115,48 @@ async function callHuggingFace(prompt: string, context: string): Promise<string>
 /**
  * Get enhanced system prompt for Gitbot 2.0
  * SIMPLIFIED for faster 3-5 second responses
+ * MATCHES aiResponseParser.ts REGEX EXACTLY
  */
 function getSystemPrompt(): string {
   return `You are Gitbot 2.0 AI. Analyze code and respond FAST in this EXACT format:
 
 [Multi-file Context Reasoning]
-Brief summary of files and relationships.
+📁 Relevant Files
+<summary>
+🔗 Dependencies Involved
+<dependencies>
+⚡ Cross-file Considerations
+<cross-file>
 
-[Security Issues]
+[Enhanced Code Review]
+🔴 CRITICAL ISSUES
 File: <path>
-Severity: CRITICAL|HIGH|MEDIUM|LOW
 Description: <issue>
-Fix: <solution>
+Attack Scenario: <scenario>
+Fix Recommendation: <fix>
+Impact Scope: <scope>
 
-[Refactoring Suggestions]
+🟠 HIGH RISK ISSUES
 File: <path>
-Issue: <problem>
-Fix: <specific code change>
-Benefits: <list>
+...
 
-[Test Cases]
+[Intelligent Refactor Suggestions]
+1. File: <path>
+   - Issue: <issue>
+   - Refactor Recommendation: <fix>
+   - Impact on Other Files: <impact>
+   - Security Implications: <implications>
+   - Priority: HIGH
+
+[Automated Test Suite Generation]
+Test Case 1: <name>
 \`\`\`language
-// Test 1: <name>
-<complete runnable test code>
+<code>
 \`\`\`
+
+[ZIP Package Specification]
+File Structure:
+- tests/test_1.ts
 
 Keep responses under 2000 tokens. Be specific and actionable.`;
 }

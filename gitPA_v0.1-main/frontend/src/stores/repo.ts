@@ -111,14 +111,16 @@ export const useRepoStore = defineStore('repo', {
         const response = await api.post('/api/repo/security-scan', { repoUrl: this.url });
         this.securityReport = response.data;
         
-        const summary = `🔒 **Security Scan Complete**\n\n` +
+        // Format issues for Enhanced UI parser
+        const issuesList = response.data.issues.map((issue: any) => {
+          const emoji = issue.severity === 'CRITICAL' ? '🔴' : issue.severity === 'HIGH' ? '🟠' : issue.severity === 'MEDIUM' ? '🟡' : '🟢';
+          return `${emoji} ${issue.severity} ISSUES\nFile: ${issue.file}\nDescription: ${issue.description}\nFix Recommendation: ${issue.recommendation}\n`;
+        }).join('\n');
+
+        const summary = `[Enhanced Code Review]\n` +
           `**Security Score:** ${response.data.securityScore}/100\n\n` +
-          `**Issues Found:**\n` +
-          `- 🔴 Critical: ${response.data.summary.stats.critical}\n` +
-          `- 🟠 High: ${response.data.summary.stats.high}\n` +
-          `- 🟡 Medium: ${response.data.summary.stats.medium}\n` +
-          `- 🟢 Low: ${response.data.summary.stats.low}\n\n` +
-          `Scanned ${response.data.filesScanned} files. View detailed report in the Security tab.`;
+          `${issuesList}\n\n` +
+          `Scanned ${response.data.filesScanned} files.`;
         
         this.messages.push({
           id: Date.now().toString(),
@@ -181,13 +183,17 @@ export const useRepoStore = defineStore('repo', {
         const testsWithCode = response.data.tests
           .map((t: any, idx: number) => {
             if (t.error) return `❌ **${t.originalFile}**: ${t.error}`;
-            return `### Test ${idx + 1}: ${t.testFile}\n\n\`\`\`${t.language || 'typescript'}\n${t.testCode || '// No test code generated'}\n\`\`\`\n\n**Framework:** ${t.framework || 'Unknown'} | **File:** ${t.originalFile}`;
+            // Format matches aiResponseParser.ts expectation: "Test Case X: Name"
+            return `Test Case ${idx + 1}: ${t.testFile}\n\`\`\`${t.language || 'typescript'}\n${t.testCode || '// No test code generated'}\n\`\`\`\n\n**Framework:** ${t.framework || 'Unknown'} | **File:** ${t.originalFile}`;
           })
           .join('\n\n---\n\n');
         
-        const summary = `🧪 **Test Generation Complete**\n\n` +
-          `Generated tests for ${response.data.testsGenerated}/${response.data.totalFiles} files.\n\n` +
-          `${testsWithCode}`;
+        const summary = `[Automated Test Suite Generation]\n` +
+          `Tests Generated For: ${response.data.totalFiles} files\n\n` +
+          `${testsWithCode}\n\n` +
+          `[ZIP Package Specification]\n` +
+          `File Structure:\n` +
+          response.data.tests.map((t: any) => `- tests/${t.testFile}`).join('\n');
         
         this.messages.push({
           id: Date.now().toString(),

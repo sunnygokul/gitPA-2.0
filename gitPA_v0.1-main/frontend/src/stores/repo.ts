@@ -142,18 +142,20 @@ export const useRepoStore = defineStore('repo', {
         const response = await api.post('/api/repo/code-review', { repoUrl: this.url });
         this.codeReview = response.data;
         
-        const summary = `📊 **Code Review Complete**\n\n` +
+        // Pass complete AI review for enhanced UI parsing
+        const fullReview = `📊 **Code Review Complete**\n\n` +
           `**Overall Score:** ${response.data.overallScore}/100\n\n` +
-          `**Detailed Scores:**\n` +
+          `**Detailed Scores:**\n\n` +
           `- Documentation: ${response.data.scores.documentation}/100\n` +
           `- Maintainability: ${response.data.scores.maintainability}/100\n` +
           `- Dependencies: ${response.data.scores.dependencies}/100\n\n` +
-          `${response.data.aiReview}`;
+          `---\n\n` +
+          `${response.data.aiReview || ''}`;
         
         this.messages.push({
           id: Date.now().toString(),
           role: 'assistant',
-          content: summary
+          content: fullReview
         });
       } catch (error: any) {
         this.error = 'Code review failed';
@@ -175,13 +177,21 @@ export const useRepoStore = defineStore('repo', {
         });
         this.generatedTests = response.data;
         
+        // Include complete test code for enhanced UI display
+        const testsWithCode = response.data.tests
+          .filter((t: any) => !t.error)
+          .map((t: any) => t.testCode)
+          .join('\n\n---\n\n');
+        
         const summary = `🧪 **Test Generation Complete**\n\n` +
           `Generated tests for ${response.data.testsGenerated}/${response.data.totalFiles} files.\n\n` +
           response.data.tests.map((t: any) => 
             t.error ? 
               `❌ ${t.originalFile}: ${t.error}` : 
               `✅ ${t.originalFile} → ${t.testFile}`
-          ).join('\n');
+          ).join('\n') +
+          `\n\n---\n\n` +
+          testsWithCode;
         
         this.messages.push({
           id: Date.now().toString(),
@@ -205,17 +215,19 @@ export const useRepoStore = defineStore('repo', {
         const response = await api.post('/api/repo/refactor', { repoUrl: this.url });
         this.refactoringSuggestions = response.data;
         
-        const summary = `🔧 **Refactoring Analysis Complete**\n\n` +
+        // Pass complete AI analysis for enhanced UI parsing
+        const fullAnalysis = `🔧 **Refactoring Analysis Complete**\n\n` +
           `Found ${response.data.stats.total} improvement opportunities:\n` +
           `- 🔴 High Priority: ${response.data.stats.highPriority}\n` +
-          `- � Medium Priority: ${response.data.stats.mediumPriority}\n` +
+          `- 🟡 Medium Priority: ${response.data.stats.mediumPriority}\n` +
           `- 🟢 Low Priority: ${response.data.stats.lowPriority}\n\n` +
-          `${response.data.aiAnalysis}`;
+          `---\n\n` +
+          `${response.data.aiAnalysis || ''}`;
         
         this.messages.push({
           id: Date.now().toString(),
           role: 'assistant',
-          content: summary
+          content: fullAnalysis
         });
       } catch (error: any) {
         this.error = 'Refactoring analysis failed';

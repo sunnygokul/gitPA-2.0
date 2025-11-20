@@ -1,6 +1,7 @@
-// @ts-nocheck
 import axios from 'axios';
+import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { fetchRepoFiles } from './utils/github-api';
+import type { TestGenerationRequestBody } from './types';
 
 function getLanguage(filename: string): string {
   if (filename.endsWith('.ts') || filename.endsWith('.tsx')) return 'typescript';
@@ -12,7 +13,7 @@ function getLanguage(filename: string): string {
 }
 
 function getTestFramework(language: string): string {
-  const frameworks = {
+  const frameworks: Record<string, string> = {
     javascript: 'Jest',
     typescript: 'Jest',
     python: 'pytest',
@@ -61,21 +62,27 @@ async function generateTestsWithAI(file: any, repoName: string) {
   return data.choices[0].message.content;
 }
 
-export default async function handler(req, res) {
+export default async function handler(
+  req: VercelRequest,
+  res: VercelResponse
+): Promise<void> {
   if (req.method !== 'POST') {
-    return res.status(405).json({ status: 'error', message: 'Method not allowed' });
+    res.status(405).json({ status: 'error', message: 'Method not allowed' });
+    return;
   }
 
   try {
-    const { repoUrl, filePath } = req.body;
+    const { repoUrl, filePath } = req.body as TestGenerationRequestBody;
 
     if (!repoUrl) {
-      return res.status(400).json({ status: 'error', message: 'repoUrl is required' });
+      res.status(400).json({ status: 'error', message: 'repoUrl is required' });
+      return;
     }
 
     const match = repoUrl.match(/github\.com\/([^/]+)\/([^/]+)/);
     if (!match) {
-      return res.status(400).json({ status: 'error', message: 'Invalid GitHub URL' });
+      res.status(400).json({ status: 'error', message: 'Invalid GitHub URL' });
+      return;
     }
 
     const [, owner, repo] = match;
@@ -89,19 +96,32 @@ export default async function handler(req, res) {
       fileExtensions: ['.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.cs'],
       excludeTests: true
     });
-    // Add language to each file
-    files.forEach(f => f.language = getLanguage(f.name));
-    console.log(`Found ${files.length} testable files`);
+    
+    // Add language to each file with type
+    interface FileWithLanguage {
+      path: string;
+      name: string;
+      content: string;
+      size?: number;
+      language: string;
+    }
+    
+    const filesWithLanguage = files.map(f => ({
+      ...f,
+      language: getLanguage(f.name)
+    })) as FileWithLanguage[];
+    console.log(`Found ${filesWithLanguage.length} testable files`);
 
-    let targetFiles = files;
+    let targetFiles = filesWithLanguage;
     if (filePath) {
-      targetFiles = files.filter(f => f.path === filePath);
+      targetFiles = filesWithLanguage.filter(f => f.path === filePath);
       if (targetFiles.length === 0) {
-        return res.status(404).json({ status: 'error', message: `File ${filePath} not found` });
+        res.status(404).json({ status: 'error', message: `File ${filePath} not found` });
+        return;
       }
     } else {
       // Generate for top 5 most complex files (by line count as proxy)
-      targetFiles = files
+      targetFiles = filesWithLanguage
         .sort((a, b) => b.content.split('\n').length - a.content.split('\n').length)
         .slice(0, 5);
     }
@@ -121,11 +141,12 @@ export default async function handler(req, res) {
           language: file.language,
           framework: getTestFramework(file.language)
         });
-      } catch (err) {
-        console.error(`Failed to generate tests for ${file.path}:`, err.message);
+      } catch (err: unknown) {
+        const error = err as Error;
+        console.error(`Failed to generate tests for ${file.path}:`, error.message);
         testResults.push({
           originalFile: file.path,
-          error: err.message
+          error: error.message
         });
       }
     }
@@ -141,9 +162,10 @@ export default async function handler(req, res) {
       timestamp: new Date().toISOString()
     });
 
-  } catch (error) {
-    console.error('Test generation error:', error);
-    const safeMessage = error?.response?.data?.message || error?.message || 'Test generation failed';
+  } catch (error: unknown) {
+    const err = error as any;
+    console.error('Test generation error:', err);
+    const safeMessage = err?.response?.data?.message || err?.message || 'Test generation failed';
     res.status(500).json({ status: 'error', message: String(safeMessage) });
   }
 }

@@ -1,6 +1,7 @@
-// @ts-nocheck
 import axios from 'axios';
+import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { fetchRepoFiles } from './utils/github-api';
+import type { RefactorRequestBody } from './types';
 
 interface RefactoringSuggestion {
   file: string;
@@ -159,21 +160,27 @@ async function getAIRefactoringSuggestions(files: any[], repoName: string) {
   return data.choices[0].message.content;
 }
 
-export default async function handler(req, res) {
+export default async function handler(
+  req: VercelRequest,
+  res: VercelResponse
+): Promise<void> {
   if (req.method !== 'POST') {
-    return res.status(405).json({ status: 'error', message: 'Method not allowed' });
+    res.status(405).json({ status: 'error', message: 'Method not allowed' });
+    return;
   }
 
   try {
-    const { repoUrl } = req.body;
+    const { repoUrl } = req.body as RefactorRequestBody;
 
     if (!repoUrl) {
-      return res.status(400).json({ status: 'error', message: 'repoUrl is required' });
+      res.status(400).json({ status: 'error', message: 'repoUrl is required' });
+      return;
     }
 
     const match = repoUrl.match(/github\.com\/([^/]+)\/([^/]+)/);
     if (!match) {
-      return res.status(400).json({ status: 'error', message: 'Invalid GitHub URL' });
+      res.status(400).json({ status: 'error', message: 'Invalid GitHub URL' });
+      return;
     }
 
     const [, owner, repo] = match;
@@ -214,9 +221,10 @@ export default async function handler(req, res) {
       timestamp: new Date().toISOString()
     });
 
-  } catch (error) {
-    console.error('Refactoring analysis error:', error);
-    const safeMessage = error?.response?.data?.message || error?.message || 'Refactoring analysis failed';
+  } catch (error: unknown) {
+    const err = error as any;
+    console.error('Refactoring analysis error:', err);
+    const safeMessage = err?.response?.data?.message || err?.message || 'Refactoring analysis failed';
     res.status(500).json({ status: 'error', message: String(safeMessage) });
   }
 }

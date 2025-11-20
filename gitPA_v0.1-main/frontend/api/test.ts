@@ -1,7 +1,11 @@
-// @ts-nocheck
 // Simple test endpoint to check if environment variables are set
 
-export default async function handler(req, res) {
+import type { VercelRequest, VercelResponse } from '@vercel/node';
+
+export default async function handler(
+  req: VercelRequest,
+  res: VercelResponse
+): Promise<void> {
   const hasGithubToken = !!process.env.GITHUB_TOKEN;
   const hasHFKey = !!process.env.HUGGINGFACE_API_KEY;
   

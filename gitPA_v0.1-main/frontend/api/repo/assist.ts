@@ -1,11 +1,17 @@
-// @ts-nocheck
 import axios from 'axios';
+import type { VercelRequest, VercelResponse } from '@vercel/node';
+import type { AssistRequestBody } from './types';
 
 const MAX_FILES_IN_CONTEXT = 10; // Reduced to prevent token limit
 const MAX_TOTAL_CONTEXT_SIZE = 80000; // ~20K tokens (4 chars per token)
 const MAX_FILE_SIZE = 8000; // Smaller file excerpts
 
-async function fetchRepoFiles(owner: string, repo: string, path = '', files = []) {
+interface RepoFile {
+  path: string;
+  content: string;
+}
+
+async function fetchRepoFiles(owner: string, repo: string, path = '', files: RepoFile[] = []): Promise<RepoFile[]> {
   try {
     const response = await axios.get(
       `https://api.github.com/repos/${owner}/${repo}/contents/${path}`,
@@ -39,21 +45,23 @@ async function fetchRepoFiles(owner: string, repo: string, path = '', files = []
           }
           
           files.push({ path: item.path, content });
-        } catch (err) {
-          console.error(`Error fetching ${item.path}:`, err.message);
+        } catch (err: unknown) {
+          const error = err as Error;
+          console.error(`Error fetching ${item.path}:`, error.message);
         }
       } else if (item.type === 'dir' && files.length < 50) {
         await fetchRepoFiles(owner, repo, item.path, files);
       }
     }
-  } catch (error) {
-    console.error(`Error fetching repo contents at ${path}:`, error.message);
+  } catch (error: unknown) {
+    const err = error as Error;
+    console.error(`Error fetching repo contents at ${path}:`, err.message);
   }
 
   return files;
 }
 
-function getRelevantFiles(allFiles, query) {
+function getRelevantFiles(allFiles: RepoFile[], query: string): RepoFile[] {
   if (allFiles.length <= MAX_FILES_IN_CONTEXT) {
     return allFiles;
   }
@@ -117,13 +125,17 @@ async function getAIResponse(query: string, context: string, repoName: string) {
   return data.choices[0].message.content;
 }
 
-export default async function handler(req, res) {
+export default async function handler(
+  req: VercelRequest,
+  res: VercelResponse
+): Promise<void> {
   try {
-    const { repoUrl, query } = req.body;
+    const { repoUrl, query } = req.body as AssistRequestBody;
     
     const match = repoUrl.match(/github\.com\/([^/]+)\/([^/]+)/);
     if (!match) {
-      return res.status(400).json({ status: 'error', message: 'Invalid GitHub URL' });
+      res.status(400).json({ status: 'error', message: 'Invalid GitHub URL' });
+      return;
     }
 
     const [, owner, repo] = match;
@@ -151,19 +163,20 @@ export default async function handler(req, res) {
     const repoName = `${owner}/${repo}`;
     const response = await getAIResponse(query, context, repoName);
     res.json({ status: 'success', response });
-  } catch (error) {
-    console.error('❌ ASSIST ERROR:', error);
+  } catch (error: unknown) {
+    const err = error as any;
+    console.error('❌ ASSIST ERROR:', err);
     console.error('Error details:', {
-      message: error?.message,
-      response: error?.response?.data,
-      status: error?.response?.status,
+      message: err?.message,
+      response: err?.response?.data,
+      status: err?.response?.status,
       apiKeySet: !!process.env.HUGGINGFACE_API_KEY,
       apiKeyPrefix: process.env.HUGGINGFACE_API_KEY ? process.env.HUGGINGFACE_API_KEY.substring(0, 7) + '...' : 'NOT SET'
     });
     
     // Check if it's an API key issue
     if (!process.env.HUGGINGFACE_API_KEY) {
-      return res.status(500).json({ 
+      res.status(500).json({ 
         status: 'error', 
         message: 'HUGGINGFACE_API_KEY environment variable is not set. Please configure it in Vercel dashboard under Settings > Environment Variables.',
         debug: { 
@@ -171,15 +184,16 @@ export default async function handler(req, res) {
           hint: 'Get your API key from https://huggingface.co/settings/tokens'
         } 
       });
+      return;
     }
     
-    const safeMessage = error?.response?.data?.error || error?.message || 'Failed to process query';
+    const safeMessage = err?.response?.data?.error || err?.message || 'Failed to process query';
     res.status(500).json({ 
       status: 'error', 
       message: String(safeMessage), 
       debug: { 
         apiKeySet: true,
-        errorType: error?.constructor?.name 
+        errorType: err?.constructor?.name 
       } 
     });
   }

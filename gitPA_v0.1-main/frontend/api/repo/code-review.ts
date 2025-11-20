@@ -1,6 +1,7 @@
-// @ts-nocheck
 import axios from 'axios';
+import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { fetchRepoFiles } from './utils/github-api';
+import type { CodeReviewRequestBody } from './types';
 
 interface CodeMetrics {
   totalFiles: number;
@@ -170,24 +171,30 @@ async function getAICodeReview(files: any[], metrics: CodeMetrics, dependencies:
   return data.choices[0].message.content;
 }
 
-export default async function handler(req, res) {
+export default async function handler(
+  req: VercelRequest,
+  res: VercelResponse
+): Promise<void> {
   console.log('🔍 Code review endpoint called:', req.method);
   
   if (req.method !== 'POST') {
-    return res.status(405).json({ status: 'error', message: 'Method not allowed' });
+    res.status(405).json({ status: 'error', message: 'Method not allowed' });
+    return;
   }
 
   try {
-    const { repoUrl } = req.body;
+    const { repoUrl } = req.body as CodeReviewRequestBody;
     console.log('📊 Processing code review for:', repoUrl);
 
     if (!repoUrl) {
-      return res.status(400).json({ status: 'error', message: 'repoUrl is required' });
+      res.status(400).json({ status: 'error', message: 'repoUrl is required' });
+      return;
     }
 
     const match = repoUrl.match(/github\.com\/([^/]+)\/([^/]+)/);
     if (!match) {
-      return res.status(400).json({ status: 'error', message: 'Invalid GitHub URL' });
+      res.status(400).json({ status: 'error', message: 'Invalid GitHub URL' });
+      return;
     }
 
     const [, owner, repo] = match;
@@ -234,20 +241,21 @@ export default async function handler(req, res) {
       timestamp: new Date().toISOString()
     });
 
-  } catch (error) {
-    console.error('❌ CODE REVIEW ERROR:', error);
-    console.error('Error stack:', error?.stack);
+  } catch (error: unknown) {
+    const err = error as any;
+    console.error('❌ CODE REVIEW ERROR:', err);
+    console.error('Error stack:', err?.stack);
     console.error('Error details:', {
-      message: error?.message,
-      response: error?.response?.data,
-      status: error?.response?.status,
+      message: err?.message,
+      response: err?.response?.data,
+      status: err?.response?.status,
       apiKeySet: !!process.env.HUGGINGFACE_API_KEY,
       apiKeyPrefix: process.env.HUGGINGFACE_API_KEY ? process.env.HUGGINGFACE_API_KEY.substring(0, 7) + '...' : 'NOT SET'
     });
     
     // Check if it's an API key issue
     if (!process.env.HUGGINGFACE_API_KEY) {
-      return res.status(500).json({ 
+      res.status(500).json({ 
         status: 'error', 
         message: 'HUGGINGFACE_API_KEY environment variable is not set. Please configure it in Vercel dashboard under Settings > Environment Variables.',
         debug: { 
@@ -255,15 +263,16 @@ export default async function handler(req, res) {
           hint: 'Get your API key from https://huggingface.co/settings/tokens'
         } 
       });
+      return;
     }
     
-    const safeMessage = error?.response?.data?.error || error?.message || 'Code review failed';
+    const safeMessage = err?.response?.data?.error || err?.message || 'Code review failed';
     res.status(500).json({ 
       status: 'error', 
       message: String(safeMessage), 
       debug: { 
         apiKeySet: true,
-        errorType: error?.constructor?.name
+        errorType: err?.constructor?.name
       } 
     });
   }

@@ -1,12 +1,19 @@
-// @ts-nocheck
 import axios from 'axios';
+import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { fetchRepoContents } from './utils/github-api';
+import type { ScanRequestBody } from './types';
 
-export default async function handler(req, res) {
+export default async function handler(
+  req: VercelRequest,
+  res: VercelResponse
+): Promise<void> {
   try {
-    const { url } = req.body;
+    const { url } = req.body as ScanRequestBody;
     const match = url.match(/github\.com\/([^/]+)\/([^/]+)/);
-    if (!match) return res.status(400).json({ status: 'error', message: 'Invalid GitHub URL' });
+    if (!match) {
+      res.status(400).json({ status: 'error', message: 'Invalid GitHub URL' });
+      return;
+    }
 
     const [, owner, repo] = match;
 
@@ -22,13 +29,14 @@ export default async function handler(req, res) {
     const summary = `This is a ${metadataResponse.data.language || 'multi-language'} repository created by ${owner}. ${metadataResponse.data.description || 'No description provided.'}`;
 
     res.json({ status: 'success', fileStructure, repo: { name: metadataResponse.data.name, owner: metadataResponse.data.owner.login, description: metadataResponse.data.description, summary } });
-  } catch (error) {
+  } catch (error: unknown) {
+    const err = error as any;
     // Log useful error details for debugging (response body if available)
-    console.error('scan error', error?.message || error);
-    if (error?.response?.data) {
-      console.error('scan error response data:', error.response.data);
+    console.error('scan error', err?.message || err);
+    if (err?.response?.data) {
+      console.error('scan error response data:', err.response.data);
     }
-    const safeMessage = error?.response?.data?.message || error?.message || 'Failed to scan repository';
+    const safeMessage = err?.response?.data?.message || err?.message || 'Failed to scan repository';
     res.status(500).json({ status: 'error', message: String(safeMessage) });
   }
 }

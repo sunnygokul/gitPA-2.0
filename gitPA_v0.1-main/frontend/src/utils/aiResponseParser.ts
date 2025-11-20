@@ -353,5 +353,33 @@ export function parseAIResponse(content: string): ParsedAIResponse {
     };
   }
 
-  return parsed;
+  // Create clean content by removing parsed sections
+  let cleanContent = content;
+  
+  // Helper to remove section by header
+  const removeSection = (header: string) => {
+    const regex = new RegExp(`\\[${header}\\][\\s\\S]*?(?=\\[|$)`, 'i');
+    cleanContent = cleanContent.replace(regex, '');
+    // Also try markdown header format
+    const mdRegex = new RegExp(`#{1,3}\\s*${header}[\\s\\S]*?(?=\\n#{1,3}\\s|\\[|$)`, 'i');
+    cleanContent = cleanContent.replace(mdRegex, '');
+  };
+
+  if (parsed.multiFileContext) removeSection('Multi-file Context Reasoning');
+  if (parsed.securityIssues) removeSection('Enhanced Code Review');
+  if (parsed.refactorSuggestions) removeSection('Intelligent Refactor Suggestions');
+  if (parsed.testCases) removeSection('Automated Test Suite Generation');
+  if (parsed.zipSpecification) removeSection('ZIP Package Specification');
+  if (parsed.architectureAssessment) removeSection('Architecture Assessment');
+  if (parsed.dependencyRiskAnalysis) removeSection('Dependency Risk Analysis');
+  if (parsed.performanceConcerns) removeSection('Performance Concerns');
+  if (parsed.maintainabilityScore) removeSection('Maintainability Score');
+
+  // Clean up extra newlines
+  cleanContent = cleanContent.replace(/\n{3,}/g, '\n\n').trim();
+
+  return {
+    ...parsed,
+    additionalContent: cleanContent
+  };
 }

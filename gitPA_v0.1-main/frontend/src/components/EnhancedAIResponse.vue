@@ -34,9 +34,9 @@
       :performance="parsed.performanceConcerns"
     />
     
-    <!-- Always show markdown content in a nice panel -->
-    <div class="bg-[#161b22] rounded-lg border border-[#30363d] p-6">
-      <MarkdownRenderer :content="parsed.rawContent" />
+    <!-- Only show remaining content if it exists and isn't just whitespace -->
+    <div v-if="parsed.additionalContent && parsed.additionalContent.length > 10" class="bg-[#161b22] rounded-lg border border-[#30363d] p-6">
+      <MarkdownRenderer :content="parsed.additionalContent" />
     </div>
   </div>
 </template>

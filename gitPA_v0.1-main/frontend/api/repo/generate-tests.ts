@@ -88,28 +88,35 @@ export default async function handler(
         .slice(0, 5);
     }
 
-    const testResults = [];
-    for (const file of targetFiles) {
+    // Generate tests in parallel for speed
+    const testPromises = targetFiles.map(async (file) => {
       try {
         const testCode = await generateTestCases([file], file.path, file.language);
         const testFileName = generateTestFileName(file.name, file.language);
         
-        testResults.push({
+        // Ensure we have code
+        if (!testCode || testCode.length < 10) {
+            throw new Error('AI generated empty test code');
+        }
+
+        return {
           originalFile: file.path,
           testFile: testFileName,
           testCode,
           language: file.language,
           framework: getTestFramework(file.language)
-        });
+        };
       } catch (err: unknown) {
         const error = err as Error;
         console.error(`Failed to generate tests for ${file.path}:`, error.message);
-        testResults.push({
+        return {
           originalFile: file.path,
           error: error.message
-        });
+        };
       }
-    }
+    });
+
+    const testResults = await Promise.all(testPromises);
 
     const successCount = testResults.filter(r => !r.error).length;
 

@@ -315,7 +315,6 @@ import { storeToRefs } from 'pinia';
 import { useRepositoryStore } from './stores/repository';
 import { useRepoStore } from './stores/repo';
 import FileStructure from './components/FileStructure.vue';
-import MarkdownRenderer from './components/MarkdownRenderer.vue';
 import EnhancedAIResponse from './components/EnhancedAIResponse.vue';
 import CodeBlock from './components/CodeBlock.vue';
 

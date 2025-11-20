@@ -68,7 +68,7 @@
 import { ref } from 'vue';
 import type { TestCase, ZipSpecification } from '../utils/aiResponseParser';
 
-const props = defineProps<{
+defineProps<{
   testCases: TestCase[] | undefined;
   zipSpec: ZipSpecification | undefined;
 }>();

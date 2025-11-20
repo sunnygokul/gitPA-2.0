@@ -45,11 +45,11 @@ An advanced web-based application that revolutionizes code analysis with compreh
 - **Pinia** - State management
 - **Marked + Highlight.js** - Markdown rendering with syntax highlighting
 
-### Backend
-- **Vercel Serverless Functions** - Scalable serverless architecture
-- **Google Gemini 2.0 Flash** - Free AI with 1M token context window
-- **GitHub REST API** - Repository data fetching
-- **TypeScript** - Type-safe code
+### API Layer
+- **Vercel Serverless Functions** - Scalable serverless architecture (no separate backend!)
+- **TypeScript** - Type-safe API endpoints in `frontend/api/repo/`
+- **GitHub REST API** - Direct repository data fetching
+- **Multi-Provider AI** - Automatic fallback between providers
 
 ### AI Capabilities (Multi-Provider with Automatic Fallback)
 - **Primary**: Google Gemini 2.5 Flash (1M token context, 1,500 requests/day FREE)
@@ -64,10 +64,20 @@ An advanced web-based application that revolutionizes code analysis with compreh
 
 ```
 gitPA_v0.1/
-├── frontend/          # Vue.js frontend application
-├── backend/           # Express.js backend server
-├── .env.example       # Example environment variables
-└── README.md          # Project documentation
+├── frontend/
+│   ├── api/repo/           # Vercel Serverless API endpoints
+│   │   ├── utils/          # Shared utilities (AI service, GitHub API)
+│   │   ├── assist.ts       # AI chat endpoint
+│   │   ├── code-review.ts  # Code review endpoint
+│   │   ├── refactor.ts     # Refactoring suggestions endpoint
+│   │   ├── security-scan.ts # Security scanning endpoint
+│   │   ├── generate-tests.ts # Test generation endpoint
+│   │   └── scan.ts         # Repository scanning endpoint
+│   ├── src/                # Vue.js frontend application
+│   └── package.json
+├── AI_PROVIDERS.md         # AI provider setup guide
+├── SECURITY.md             # Security documentation
+└── README.md               # This file
 ```
 
 ## 🎯 Quick Start (5 minutes)
@@ -125,35 +135,41 @@ pnpm install
 # Set up environment variables
 # In Vercel dashboard, add GITHUB_TOKEN and GEMINI_API_KEY
 
-# Run development server
-pnpm run dev
-     - An OpenAI API Key (from OpenAI Platform)
-   - For the frontend, configure the backend API URL (default: http://localhost:3000)
-   - In case you get an `Invalid API key error`. Try setting your api key manually in the command line
-      - For powershell: `$env:OPENAI_API_KEY = "your-api-key"`
-      - For bash: `export OPENAI_API_KEY="your-api-key"`
+# Start development server
+pnpm dev
+```
 
-4. Start development servers:
-   ```bash
-   # Start frontend
-   cd frontend
-   pnpm dev
+The application will be available at http://localhost:5173
 
-   # Start backend
-   cd ../backend
-   pnpm dev
-   ```
+**Note**: API endpoints are serverless functions that work automatically in both development and production.
 
-## Environment Variables
+## 🔧 API Endpoints
 
-### Backend (.env)
-- `PORT`: The port number for the backend server (default: 3000)
-- `NODE_ENV`: The environment mode (development/production)
-- `GITHUB_TOKEN`: Your GitHub Personal Access Token
-- `OPENAI_API_KEY`: Your OpenAI API Key
+All endpoints are Vercel serverless functions (no separate backend needed):
 
-### Frontend (.env)
-- `VITE_API_BASE_URL`: The URL of your backend server
+- `POST /api/repo/scan` - Scan repository structure
+- `POST /api/repo/assist` - AI-powered Q&A about code
+- `POST /api/repo/code-review` - Comprehensive code review
+- `POST /api/repo/refactor` - Refactoring suggestions
+- `POST /api/repo/security-scan` - Security vulnerability detection
+- `POST /api/repo/generate-tests` - Automated test generation
+- `GET /api/repo/file-content` - Fetch individual file contents
+
+## 📦 Environment Variables (Production)
+
+Set these in your Vercel project dashboard:
+
+**Required:**
+- `GITHUB_TOKEN` - Your GitHub Personal Access Token
+
+**Recommended (AI Providers):**
+- `GEMINI_API_KEY` - Google Gemini API key (1,500 requests/day FREE)
+- `GROQ_API_KEY` - Groq API key (14,400 requests/day FREE)
+
+**Optional:**
+- `HUGGINGFACE_API_KEY` - HuggingFace key (fallback only)
+
+With Gemini + Groq, you get **16,000 FREE AI requests/day**!
 
 ## License
 

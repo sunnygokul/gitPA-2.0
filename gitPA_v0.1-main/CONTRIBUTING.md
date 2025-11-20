@@ -24,8 +24,10 @@ Thank you for your interest in contributing to gitPA! This document provides gui
 
 - Node.js 18+
 - pnpm 9.x or 10.x
-- GitHub Personal Access Token
-- HuggingFace API Key (free)
+- GitHub Personal Access Token (required)
+- Google Gemini API Key (recommended - 1,500 requests/day FREE)
+- Groq API Key (recommended - 14,400 requests/day FREE)
+- HuggingFace API Key (optional fallback)
 
 ### Local Setup
 

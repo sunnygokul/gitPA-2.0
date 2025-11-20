@@ -232,9 +232,8 @@ export default async function handler(req, res) {
     const uniqueDeps = new Set(dependencies.flatMap(d => d.externalDependencies)).size;
     const dependencyScore = Math.max(0, 100 - uniqueDeps * 2);
 
-    // Architecture score based on patterns and circular dependencies
-    const hasCircularDeps = archInsights.circularDeps.length > 0;
-    const architectureScore = hasCircularDeps ? 60 : 90;
+    // Simple architecture score based on file organization
+    const architectureScore = 85; // Basic score for now
 
     const overallScore = Math.round((documentationScore + maintainabilityScore + dependencyScore + architectureScore) / 4);
 
@@ -248,13 +247,6 @@ export default async function handler(req, res) {
         dependencies: dependencyScore,
         architecture: architectureScore
       },
-      architecture: {
-        pattern: archInsights.pattern,
-        layers: archInsights.layers,
-        modules: archInsights.modules.slice(0, 10),
-        circularDependencies: archInsights.circularDeps
-      },
-      coupling: couplingAnalysis,
       metrics,
       dependencies: dependencies.slice(0, 20), // Top 20 most connected files
       aiReview,

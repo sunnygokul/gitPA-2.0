@@ -71,10 +71,10 @@ const SECURITY_PATTERNS: SecurityPattern[] = [
     recommendation: 'Validate and sanitize all inputs, use execFile() with argument array'
   },
   {
-    pattern: /http:\/\//gi,
+    pattern: /http:\/\/(?!localhost|127\.0\.0\.1)/gi,
     type: 'Insecure Protocol',
     severity: 'MEDIUM',
-    description: 'Using insecure HTTP instead of HTTPS',
+    description: 'Using insecure HTTP instead of HTTPS for external connections',
     recommendation: 'Always use HTTPS for external connections'
   },
   {
@@ -91,13 +91,7 @@ const SECURITY_PATTERNS: SecurityPattern[] = [
     description: 'Dynamic require() with user input can load arbitrary modules',
     recommendation: 'Use static imports or whitelist allowed modules'
   },
-  {
-    pattern: /console\.log\s*\(/gi,
-    type: 'Information Disclosure',
-    severity: 'LOW',
-    description: 'Console logs may expose sensitive information in production',
-    recommendation: 'Remove console.log statements or use proper logging framework'
-  },
+  // Removed console.log pattern - too noisy and not a real security issue
   {
     pattern: /localStorage\.setItem.*password/gi,
     type: 'Insecure Storage',
@@ -118,6 +112,42 @@ const SECURITY_PATTERNS: SecurityPattern[] = [
     severity: 'LOW',
     description: 'Code contains technical debt markers',
     recommendation: 'Address TODOs and FIXMEs before production deployment'
+  },
+  // Additional important patterns
+  {
+    pattern: /\.env|process\.env\.\w+\s*=\s*["'][^"']+["']/gi,
+    type: 'Hardcoded Environment Variable',
+    severity: 'HIGH',
+    description: 'Environment variable may be hardcoded instead of loaded from .env',
+    recommendation: 'Ensure environment variables are loaded from .env files, not hardcoded'
+  },
+  {
+    pattern: /fetch\([^)]*\+|axios\.(?:get|post)\([^)]*\+/gi,
+    type: 'URL Injection',
+    severity: 'HIGH',
+    description: 'Dynamic URL construction may lead to SSRF or injection attacks',
+    recommendation: 'Validate and sanitize user input before constructing URLs'
+  },
+  {
+    pattern: /dangerouslySetInnerHTML/gi,
+    type: 'XSS Vulnerability',
+    severity: 'CRITICAL',
+    description: 'dangerouslySetInnerHTML can lead to XSS attacks',
+    recommendation: 'Avoid dangerouslySetInnerHTML or sanitize HTML with DOMPurify'
+  },
+  {
+    pattern: /\/\*\s*eslint-disable\s*\*\/|\/\/\s*eslint-disable/gi,
+    type: 'Disabled Security Checks',
+    severity: 'MEDIUM',
+    description: 'ESLint security checks are disabled',
+    recommendation: 'Re-enable linting rules and fix issues instead of disabling'
+  },
+  {
+    pattern: /secret|token|bearer/gi,
+    type: 'Potential Secret Exposure',
+    severity: 'MEDIUM',
+    description: 'File may contain sensitive tokens or secrets',
+    recommendation: 'Ensure secrets are not committed to version control'
   }
 ];
 
@@ -132,6 +162,33 @@ function scanFile(file: { path: string; content: string; name: string }): Securi
       // Find line number
       const position = match.index || 0;
       const lineNumber = file.content.substring(0, position).split('\n').length;
+      const matchedText = match[0];
+      
+      // Skip false positives for specific patterns
+      const lineContent = lines[lineNumber - 1]?.trim() || '';
+      
+      // Skip commented code
+      if (lineContent.startsWith('//') || lineContent.startsWith('*') || lineContent.startsWith('/*')) {
+        continue;
+      }
+      
+      // Skip console.log in imports or type definitions
+      if (pattern.type === 'Information Disclosure' && 
+          (lineContent.includes('import') || lineContent.includes('type') || lineContent.includes('interface'))) {
+        continue;
+      }
+
+      // Skip "secret|token|bearer" in variable names that are clearly safe
+      if (pattern.type === 'Potential Secret Exposure') {
+        if (lineContent.includes('getToken') || 
+            lineContent.includes('setToken') ||
+            lineContent.includes('Authorization') ||
+            lineContent.includes('Bearer ${') ||
+            lineContent.includes('process.env') ||
+            lineContent.match(/type|interface|const.*:\s*string/i)) {
+          continue; // These are function names or type definitions, not actual secrets
+        }
+      }
 
       const key = `${file.path}:${pattern.type}:${lineNumber}`;
       if (seen.has(key)) continue; // Skip duplicates
@@ -193,31 +250,43 @@ export default async function handler(
 
     const [, owner, repo] = match;
 
+    console.log(`🔍 Security scan starting for ${owner}/${repo}`);
+    
     const files = await fetchRepoFiles(owner, repo, {
-      maxDepth: 8,
-      maxFiles: 75,
-      maxFileSize: 100000,
-      fileExtensions: ['.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.cpp', '.c', '.cs', '.php', '.rb', '.go']
+      maxDepth: 10,
+      maxFiles: 150,
+      maxFileSize: 200000,
+      fileExtensions: ['.js', '.ts', '.jsx', '.tsx', '.vue', '.py', '.java', '.cpp', '.c', '.cs', '.php', '.rb', '.go', '.rs', '.swift']
     });
+
+    console.log(`📁 Found ${files.length} files to scan`);
 
     // Run basic pattern-based scan (exclude security-scan.ts itself to avoid false positives)
     const allIssues: SecurityIssue[] = [];
     for (const file of files) {
-      // Skip the security scanner file itself
-      if (file.path.includes('security-scan.ts') || file.path.includes('security-scan.js')) {
+      // Skip the security scanner file itself and test files
+      if (file.path.includes('security-scan.ts') || 
+          file.path.includes('security-scan.js') ||
+          file.path.includes('.test.') ||
+          file.path.includes('.spec.')) {
         continue;
       }
       const fileIssues = scanFile(file);
       allIssues.push(...fileIssues);
     }
 
-    // Calculate security score
+    console.log(`⚠️ Found ${allIssues.length} total security issues`);
+
+    // Calculate security score based on ALL issues
     const criticalCount = allIssues.filter(i => i.severity === 'CRITICAL').length;
     const highCount = allIssues.filter(i => i.severity === 'HIGH').length;
-    const securityScore = Math.max(0, 100 - (criticalCount * 20) - (highCount * 10));
+    const mediumCount = allIssues.filter(i => i.severity === 'MEDIUM').length;
+    const securityScore = Math.max(0, 100 - (criticalCount * 20) - (highCount * 10) - (mediumCount * 5));
 
-    // Filter: Only show CRITICAL and HIGH severity issues (ignore noise)
-    const filteredIssues = allIssues.filter(i => i.severity === 'CRITICAL' || i.severity === 'HIGH');
+    console.log(`📊 Security Score: ${securityScore}/100 (${criticalCount} critical, ${highCount} high, ${mediumCount} medium)`);
+
+    // Show ALL issues (not just CRITICAL and HIGH)
+    const filteredIssues = allIssues;
     const summary = categorizeIssues(filteredIssues);
 
     res.json({

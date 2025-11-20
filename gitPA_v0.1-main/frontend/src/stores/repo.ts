@@ -179,19 +179,15 @@ export const useRepoStore = defineStore('repo', {
         
         // Include complete test code for enhanced UI display
         const testsWithCode = response.data.tests
-          .filter((t: any) => !t.error)
-          .map((t: any) => t.testCode)
+          .map((t: any, idx: number) => {
+            if (t.error) return `❌ **${t.originalFile}**: ${t.error}`;
+            return `### Test ${idx + 1}: ${t.testFile}\n\n\`\`\`${t.language || 'typescript'}\n${t.testCode || '// No test code generated'}\n\`\`\`\n\n**Framework:** ${t.framework || 'Unknown'} | **File:** ${t.originalFile}`;
+          })
           .join('\n\n---\n\n');
         
         const summary = `🧪 **Test Generation Complete**\n\n` +
           `Generated tests for ${response.data.testsGenerated}/${response.data.totalFiles} files.\n\n` +
-          response.data.tests.map((t: any) => 
-            t.error ? 
-              `❌ ${t.originalFile}: ${t.error}` : 
-              `✅ ${t.originalFile} → ${t.testFile}`
-          ).join('\n') +
-          `\n\n---\n\n` +
-          testsWithCode;
+          `${testsWithCode}`;
         
         this.messages.push({
           id: Date.now().toString(),

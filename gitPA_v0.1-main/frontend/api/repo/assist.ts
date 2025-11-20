@@ -3,9 +3,9 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { callAI } from './utils/ai-service.js';
 import type { AssistRequestBody } from './types.js';
 
-const MAX_FILES_IN_CONTEXT = 10; // Reduced to prevent token limit
-const MAX_TOTAL_CONTEXT_SIZE = 80000; // ~20K tokens (4 chars per token)
-const MAX_FILE_SIZE = 8000; // Smaller file excerpts
+const MAX_FILES_IN_CONTEXT = 3; // Only 3 files for fast responses
+const MAX_TOTAL_CONTEXT_SIZE = 3000; // ~750 tokens for 3-5 second response
+const MAX_FILE_SIZE = 1000; // Very small excerpts for speed
 
 interface RepoFile {
   path: string;

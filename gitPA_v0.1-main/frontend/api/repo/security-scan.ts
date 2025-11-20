@@ -200,9 +200,13 @@ export default async function handler(
       fileExtensions: ['.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.cpp', '.c', '.cs', '.php', '.rb', '.go']
     });
 
-    // Run basic pattern-based scan
+    // Run basic pattern-based scan (exclude security-scan.ts itself to avoid false positives)
     const allIssues: SecurityIssue[] = [];
     for (const file of files) {
+      // Skip the security scanner file itself
+      if (file.path.includes('security-scan.ts') || file.path.includes('security-scan.js')) {
+        continue;
+      }
       const fileIssues = scanFile(file);
       allIssues.push(...fileIssues);
     }

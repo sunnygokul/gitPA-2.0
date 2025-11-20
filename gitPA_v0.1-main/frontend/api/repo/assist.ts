@@ -122,8 +122,9 @@ export default async function handler(
     }
     
     const repoName = `${owner}/${repo}`;
-    const prompt = `You are a helpful coding assistant. Answer this question about the ${repoName} repository: "${query}"\n\nGive a SIMPLE, DIRECT answer. No complex formatting. Just answer the question naturally.`;
-    const response = await callAI(prompt, context);
+    const simpleSystemPrompt = `You are a helpful coding assistant. Answer questions directly and naturally. No special formatting, no headers, no structured output. Just give a clear, simple answer.`;
+    const prompt = `Question about the ${repoName} repository: \"${query}\"`;
+    const response = await callAI(prompt, context, simpleSystemPrompt);
     res.json({ status: 'success', response });
   } catch (error: unknown) {
     const err = error as any;

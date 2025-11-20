@@ -24,7 +24,7 @@ const MAX_CONTEXT_DEFAULT = 80000;
  * Best for code analysis with 1M token context window
  * Rate Limits: 15 RPM, 1M TPM, 1,500 RPD (FREE)
  */
-async function callGemini(prompt: string, context: string): Promise<string> {
+async function callGemini(prompt: string, context: string, systemPrompt?: string): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
   if (!apiKey) throw new Error('GEMINI_API_KEY not set');
 
@@ -37,7 +37,8 @@ async function callGemini(prompt: string, context: string): Promise<string> {
     }
   });
 
-  const fullPrompt = `${getSystemPrompt()}\n\n${context}\n\n${prompt}`;
+  const sysPrompt = systemPrompt || getSystemPrompt();
+  const fullPrompt = `${sysPrompt}\n\n${context}\n\n${prompt}`;
   const result = await model.generateContent(fullPrompt);
   const response = result.response;
   return response.text();
@@ -48,10 +49,11 @@ async function callGemini(prompt: string, context: string): Promise<string> {
  * Lightning-fast inference with LPU architecture
  * Rate Limits: 30 RPM, 14,400 RPD (FREE)
  */
-async function callGroq(prompt: string, context: string): Promise<string> {
+async function callGroq(prompt: string, context: string, systemPrompt?: string): Promise<string> {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) throw new Error('GROQ_API_KEY not set');
 
+  const sysPrompt = systemPrompt || getSystemPrompt();
   const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -61,7 +63,7 @@ async function callGroq(prompt: string, context: string): Promise<string> {
     body: JSON.stringify({
       model: 'llama-3.3-70b-versatile',
       messages: [
-        { role: 'system', content: getSystemPrompt() },
+        { role: 'system', content: sysPrompt },
         { role: 'user', content: `${context}\n\n${prompt}` }
       ],
       max_tokens: 8000,
@@ -82,10 +84,11 @@ async function callGroq(prompt: string, context: string): Promise<string> {
  * HuggingFace AI Provider - ADDITIONAL FALLBACK
  * Multiple models available but limited free tier
  */
-async function callHuggingFace(prompt: string, context: string): Promise<string> {
+async function callHuggingFace(prompt: string, context: string, systemPrompt?: string): Promise<string> {
   const apiKey = process.env.HUGGINGFACE_API_KEY;
   if (!apiKey) throw new Error('HUGGINGFACE_API_KEY not set');
 
+  const sysPrompt = systemPrompt || getSystemPrompt();
   const response = await fetch('https://router.huggingface.co/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -95,7 +98,7 @@ async function callHuggingFace(prompt: string, context: string): Promise<string>
     body: JSON.stringify({
       model: 'Qwen/Qwen2.5-7B-Instruct',
       messages: [
-        { role: 'system', content: getSystemPrompt() },
+        { role: 'system', content: sysPrompt },
         { role: 'user', content: `${context}\n\n${prompt}` }
       ],
       max_tokens: 4096,
@@ -118,50 +121,28 @@ async function callHuggingFace(prompt: string, context: string): Promise<string>
  * MATCHES aiResponseParser.ts REGEX EXACTLY
  */
 function getSystemPrompt(): string {
-  return `You are Gitbot 2.0 AI. Analyze code and respond FAST in this EXACT format:
+  return `You are Gitbot 2.0 AI. Analyze code and respond FAST and CONCISELY.
 
-[Multi-file Context Reasoning]
-📁 Relevant Files
-<summary>
-🔗 Dependencies Involved
-<dependencies>
-⚡ Cross-file Considerations
-<cross-file>
-
-Then, based on the user's request, provide ONE of the following sections:
-
-1. FOR GENERAL QUESTIONS (Default):
-[Actionable Response]
-<Direct answer to the question>
-
-2. FOR SECURITY SCANS (Only if requested):
+For SECURITY SCANS:
 [Enhanced Code Review]
 🔴 CRITICAL ISSUES
 File: <path>
 Description: <issue>
-Attack Scenario: <scenario>
 Fix Recommendation: <fix>
-Impact Scope: <scope>
 
-3. FOR REFACTORING (Only if requested):
+For REFACTORING:
 [Intelligent Refactor Suggestions]
 1. File: <path>
    - Issue: <issue>
    - Refactor Recommendation: <fix>
-   - Impact on Other Files: <impact>
-   - Security Implications: <implications>
    - Priority: HIGH
 
-4. FOR TESTS (Only if requested):
+For TESTS:
 [Automated Test Suite Generation]
 Test Case 1: <name>
 \`\`\`language
 <code>
 \`\`\`
-
-[ZIP Package Specification]
-File Structure:
-- tests/test_1.ts
 
 Keep responses under 2000 tokens. Be specific and actionable.`;
 }
@@ -170,25 +151,25 @@ Keep responses under 2000 tokens. Be specific and actionable.`;
  * Multi-provider AI call with automatic fallback
  * Priority: Gemini > Groq > HuggingFace
  */
-export async function callAI(prompt: string, context: string): Promise<string> {
+export async function callAI(prompt: string, context: string, systemPrompt?: string): Promise<string> {
   const providers: AIProvider[] = [
     {
       name: 'Google Gemini 2.5 Flash',
       available: !!(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY),
       maxContext: 1000000, // 1M tokens
-      call: callGemini
+      call: (p, c) => callGemini(p, c, systemPrompt)
     },
     {
       name: 'Groq (Llama 3.3 70B)',
       available: !!process.env.GROQ_API_KEY,
       maxContext: 128000, // 128K tokens
-      call: callGroq
+      call: (p, c) => callGroq(p, c, systemPrompt)
     },
     {
       name: 'HuggingFace (Qwen)',
       available: !!process.env.HUGGINGFACE_API_KEY,
       maxContext: 32000, // 32K tokens
-      call: callHuggingFace
+      call: (p, c) => callHuggingFace(p, c, systemPrompt)
     }
   ];
 

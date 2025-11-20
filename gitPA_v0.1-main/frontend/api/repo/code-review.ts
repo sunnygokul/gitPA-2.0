@@ -1,5 +1,6 @@
 // @ts-nocheck
 import axios from 'axios';
+import { fetchRepoFiles } from './utils/github-api';
 
 interface CodeMetrics {
   totalFiles: number;
@@ -17,45 +18,6 @@ interface DependencyInfo {
   imports: string[];
   exports: string[];
   externalDependencies: string[];
-}
-
-async function fetchRepoFiles(owner: string, repo: string, path = '', files = [], depth = 0) {
-  if (depth > 10 || files.length >= 100) return files;
-
-  try {
-    const githubToken = process.env.GITHUB_TOKEN || '';
-    const response = await axios.get(
-      `https://api.github.com/repos/${owner}/${repo}/contents/${path}`,
-      { headers: { Authorization: `Bearer ${githubToken}`, Accept: 'application/vnd.github.v3+json' } }
-    );
-
-    const items = Array.isArray(response.data) ? response.data : [response.data];
-
-    for (const item of items) {
-      if (item.type === 'file' && item.size < 200000) {
-        try {
-          const contentResponse = await axios.get(item.download_url, { responseType: 'text' });
-          const content = typeof contentResponse.data === 'string' 
-            ? contentResponse.data 
-            : String(contentResponse.data || '');
-          files.push({ 
-            path: item.path, 
-            content: content, 
-            name: item.name,
-            size: item.size
-          });
-        } catch (err) {
-          console.error(`Failed to fetch ${item.path}:`, err.message);
-        }
-      } else if (item.type === 'dir' && !item.name.includes('node_modules') && !item.name.includes('.git')) {
-        await fetchRepoFiles(owner, repo, item.path, files, depth + 1);
-      }
-    }
-  } catch (error) {
-    console.error(`Error fetching repo contents at ${path}:`, error.message);
-  }
-
-  return files;
 }
 
 function calculateMetrics(files: any[]): CodeMetrics {
@@ -232,7 +194,7 @@ export default async function handler(req, res) {
     const repoName = `${owner}/${repo}`;
     console.log(`Performing code review for ${repoName}...`);
 
-    const files = await fetchRepoFiles(owner, repo);
+    const files = await fetchRepoFiles(owner, repo, { maxDepth: 10, maxFiles: 100, maxFileSize: 200000 });
     console.log(`Analyzing ${files.length} files...`);
 
     const metrics = calculateMetrics(files);

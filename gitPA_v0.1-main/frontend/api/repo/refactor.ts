@@ -1,5 +1,6 @@
 // @ts-nocheck
 import axios from 'axios';
+import { fetchRepoFiles } from './utils/github-api';
 
 interface RefactoringSuggestion {
   file: string;
@@ -10,40 +11,6 @@ interface RefactoringSuggestion {
   before: string;
   after: string;
   benefits: string[];
-}
-
-async function fetchRepoFiles(owner: string, repo: string, path = '', files = [], depth = 0) {
-  if (depth > 8 || files.length >= 50) return files;
-
-  try {
-    const githubToken = process.env.GITHUB_TOKEN || '';
-    const response = await axios.get(
-      `https://api.github.com/repos/${owner}/${repo}/contents/${path}`,
-      { headers: { Authorization: `Bearer ${githubToken}`, Accept: 'application/vnd.github.v3+json' } }
-    );
-
-    const items = Array.isArray(response.data) ? response.data : [response.data];
-
-    for (const item of items) {
-      if (item.type === 'file' && item.size < 150000) {
-        const codeExtensions = ['.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.cpp', '.cs', '.php', '.rb', '.go'];
-        if (codeExtensions.some(ext => item.name.endsWith(ext))) {
-          try {
-            const contentResponse = await axios.get(item.download_url);
-            files.push({ path: item.path, content: contentResponse.data, name: item.name });
-          } catch (err) {
-            console.error(`Failed to fetch ${item.path}:`, err.message);
-          }
-        }
-      } else if (item.type === 'dir' && !item.name.includes('node_modules') && !item.name.includes('.git')) {
-        await fetchRepoFiles(owner, repo, item.path, files, depth + 1);
-      }
-    }
-  } catch (error) {
-    console.error(`Error fetching repo contents at ${path}:`, error.message);
-  }
-
-  return files;
 }
 
 function detectCodeSmells(files: any[]): RefactoringSuggestion[] {
@@ -213,7 +180,12 @@ export default async function handler(req, res) {
     const repoName = `${owner}/${repo}`;
     console.log(`Analyzing refactoring opportunities for ${repoName}...`);
 
-    const files = await fetchRepoFiles(owner, repo);
+    const files = await fetchRepoFiles(owner, repo, {
+      maxDepth: 8,
+      maxFiles: 50,
+      maxFileSize: 150000,
+      fileExtensions: ['.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.cpp', '.cs', '.php', '.rb', '.go']
+    });
     console.log(`Analyzing ${files.length} files for code smells...`);
 
     const automaticSuggestions = detectCodeSmells(files);

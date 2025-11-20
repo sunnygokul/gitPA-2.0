@@ -1,46 +1,6 @@
 // @ts-nocheck
 import axios from 'axios';
-
-async function fetchRepoFiles(owner: string, repo: string, path = '', files = [], depth = 0) {
-  if (depth > 10 || files.length >= 50) return files;
-
-  try {
-    const githubToken = process.env.GITHUB_TOKEN || '';
-    const response = await axios.get(
-      `https://api.github.com/repos/${owner}/${repo}/contents/${path}`,
-      { headers: { Authorization: `Bearer ${githubToken}`, Accept: 'application/vnd.github.v3+json' } }
-    );
-
-    const items = Array.isArray(response.data) ? response.data : [response.data];
-
-    for (const item of items) {
-      if (item.type === 'file' && item.size < 100000) {
-        const testExtensions = ['.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.cs'];
-        const isTestFile = item.name.includes('.test.') || item.name.includes('.spec.') || item.name.includes('_test');
-        
-        if (!isTestFile && testExtensions.some(ext => item.name.endsWith(ext))) {
-          try {
-            const contentResponse = await axios.get(item.download_url);
-            files.push({ 
-              path: item.path, 
-              content: contentResponse.data, 
-              name: item.name,
-              language: getLanguage(item.name)
-            });
-          } catch (err) {
-            console.error(`Failed to fetch ${item.path}:`, err.message);
-          }
-        }
-      } else if (item.type === 'dir' && !item.name.includes('node_modules') && !item.name.includes('.git')) {
-        await fetchRepoFiles(owner, repo, item.path, files, depth + 1);
-      }
-    }
-  } catch (error) {
-    console.error(`Error fetching repo contents at ${path}:`, error.message);
-  }
-
-  return files;
-}
+import { fetchRepoFiles } from './utils/github-api';
 
 function getLanguage(filename: string): string {
   if (filename.endsWith('.ts') || filename.endsWith('.tsx')) return 'typescript';
@@ -122,7 +82,15 @@ export default async function handler(req, res) {
     const repoName = `${owner}/${repo}`;
     console.log(`Generating tests for ${repoName}...`);
 
-    const files = await fetchRepoFiles(owner, repo);
+    const files = await fetchRepoFiles(owner, repo, {
+      maxDepth: 10,
+      maxFiles: 50,
+      maxFileSize: 100000,
+      fileExtensions: ['.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.cs'],
+      excludeTests: true
+    });
+    // Add language to each file
+    files.forEach(f => f.language = getLanguage(f.name));
     console.log(`Found ${files.length} testable files`);
 
     let targetFiles = files;

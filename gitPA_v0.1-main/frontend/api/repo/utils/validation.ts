@@ -10,25 +10,25 @@ export interface ValidationResult {
 
 /**
  * Validates GitHub repository URL
- * Must match github.com/owner/repo format
+ * Very lenient - just checks it contains github.com and has owner/repo pattern
  */
 export function validateGitHubUrl(url: unknown): ValidationResult {
   if (!url || typeof url !== 'string') {
     return { valid: false, error: 'Repository URL is required and must be a string' };
   }
 
-  if (url.length > 200) {
-    return { valid: false, error: 'Repository URL is too long (max 200 characters)' };
+  if (url.length > 500) {
+    return { valid: false, error: 'Repository URL is too long (max 500 characters)' };
   }
 
-  // Validate GitHub URL format - allow various valid GitHub URL patterns
-  // Remove trailing slash if present for consistent validation
-  const cleanUrl = url.endsWith('/') ? url.slice(0, -1) : url;
-  
-  // Match github.com/owner/repo (with optional .git suffix)
-  const githubPattern = /^https?:\/\/github\.com\/[a-zA-Z0-9_-]+\/[a-zA-Z0-9_.-]+(\.git)?$/;
-  if (!githubPattern.test(cleanUrl)) {
-    return { valid: false, error: 'Invalid GitHub URL format. Expected: https://github.com/owner/repo' };
+  // Very lenient - just check it contains github.com and has the basic pattern
+  if (!url.includes('github.com')) {
+    return { valid: false, error: 'URL must be a GitHub repository URL' };
+  }
+
+  // Check for basic owner/repo pattern (very lenient)
+  if (!url.match(/github\.com\/[^\/]+\/[^\/]+/)) {
+    return { valid: false, error: 'Invalid format. Expected: github.com/username/repo' };
   }
 
   return { valid: true };

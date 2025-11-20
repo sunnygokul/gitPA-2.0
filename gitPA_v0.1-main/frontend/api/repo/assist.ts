@@ -81,12 +81,10 @@ function getRelevantFiles(allFiles, query) {
 
 async function getAIResponse(query: string, context: string, repoName: string) {
   const apiKey = process.env.HUGGINGFACE_API_KEY || '';
-  if (!apiKey) {
-    // Graceful fallback when key missing
-    return `Cannot access external AI (missing HUGGINGFACE_API_KEY). Here is a basic contextual echo based on repository ${repoName}.\n\nQuestion: ${query}\nFiles referenced: ${context.split('File: ').length - 1}.`;
-  }
-  try {
-    const response = await fetch('https://router.huggingface.co/v1/chat/completions', {
+
+  const response = await fetch(
+    'https://router.huggingface.co/v1/chat/completions',
+    {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
@@ -95,23 +93,28 @@ async function getAIResponse(query: string, context: string, repoName: string) {
       body: JSON.stringify({
         model: 'Qwen/Qwen2.5-7B-Instruct',
         messages: [
-          { role: 'system', content: `You are an expert code analysis AI analyzing: ${repoName}. ONLY answer based on provided files. Cite specific files.` },
-          { role: 'user', content: `REPOSITORY FILES:\n${context}\n\nQUESTION: ${query}\n\nAnalyze based ONLY on files above.` }
+          {
+            role: 'system',
+            content: `You are an expert code analysis AI analyzing: ${repoName}. ONLY answer based on provided files. Cite specific files.`
+          },
+          {
+            role: 'user',
+            content: `REPOSITORY FILES:\n${context}\n\nQUESTION: ${query}\n\nAnalyze based ONLY on files above.`
+          }
         ],
         max_tokens: 2048,
         temperature: 0.3,
       }),
-    });
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`HF API Error: ${response.status} - ${error}`);
     }
-    const data = await response.json();
-    return data.choices?.[0]?.message?.content || 'AI response unavailable.';
-  } catch (err) {
-    console.error('AI assist request failed, providing fallback', err);
-    return `Temporary AI failure. Fallback answer for ${repoName}. Question: ${query}. Files considered: ${context.split('File: ').length - 1}.`;
+  );
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`HF API Error: ${response.status} - ${error}`);
   }
+
+  const data = await response.json();
+  return data.choices[0].message.content;
 }
 
 export default async function handler(req, res) {
@@ -146,8 +149,8 @@ export default async function handler(req, res) {
     }
     
     const repoName = `${owner}/${repo}`;
-    const responseText = await getAIResponse(query, context, repoName);
-    res.json({ status: 'success', response: responseText });
+    const response = await getAIResponse(query, context, repoName);
+    res.json({ status: 'success', response });
   } catch (error) {
     console.error('❌ ASSIST ERROR:', error);
     console.error('Error details:', {

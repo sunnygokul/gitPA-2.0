@@ -146,38 +146,47 @@ function analyzeDependencies(files: any[]): DependencyInfo[] {
 
 async function getAICodeReview(files: any[], metrics: CodeMetrics, dependencies: DependencyInfo[], repoName: string) {
   const apiKey = process.env.HUGGINGFACE_API_KEY || '';
+  
+  // Sample key files for review
   const keyFiles = files
     .sort((a, b) => b.content.length - a.content.length)
-    .slice(0, 6)
-    .map(f => `File: ${f.path}\n\`\`\`\n${f.content.substring(0, 2500)}\n\`\`\``)
+    .slice(0, 8)
+    .map(f => `File: ${f.path}\n\`\`\`\n${f.content.substring(0, 3000)}\n\`\`\``)
     .join('\n\n');
-  if (!apiKey) {
-    return `AI key missing. Basic review: ${metrics.totalFiles} files, ${metrics.totalLines} total lines. Largest file: ${metrics.largestFile.path} (${metrics.largestFile.lines} lines).`;
-  }
-  try {
-    const response = await fetch('https://router.huggingface.co/v1/chat/completions', {
+
+  const response = await fetch(
+    'https://router.huggingface.co/v1/chat/completions',
+    {
       method: 'POST',
-      headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify({
         model: 'Qwen/Qwen2.5-7B-Instruct',
         messages: [
-          { role: 'system', content: 'You are an expert software architect with deep knowledge of design patterns, SOLID principles, and best practices.' },
-          { role: 'user', content: `Review ${repoName}:\n\nMETRICS: ${metrics.totalFiles} files, ${metrics.totalLines} lines\n\nKEY FILES:\n${keyFiles}\n\nAnalyze: architecture, quality, security, performance, technical debt. Provide actionable recommendations.` }
+          {
+            role: 'system',
+            content: 'You are an expert software architect with deep knowledge of design patterns, SOLID principles, and best practices.'
+          },
+          {
+            role: 'user',
+            content: `Review ${repoName}:\n\nMETRICS: ${metrics.totalFiles} files, ${metrics.totalLines} lines\n\nKEY FILES:\n${keyFiles}\n\nAnalyze: architecture, quality, security, performance, technical debt. Provide actionable recommendations.`
+          }
         ],
-        max_tokens: 1600,
-        temperature: 0.35,
+        max_tokens: 2048,
+        temperature: 0.4,
       }),
-    });
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`HF API Error: ${response.status} - ${error}`);
     }
-    const data = await response.json();
-    return data.choices?.[0]?.message?.content || 'AI review unavailable.';
-  } catch (e) {
-    console.error('AI code review failed, fallback engaged', e);
-    return `Fallback review for ${repoName}. Total files: ${metrics.totalFiles}. Consider improving documentation and reducing large file size (${metrics.largestFile.path}).`;
+  );
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`HF API Error: ${response.status} - ${error}`);
   }
+
+  const data = await response.json();
+  return data.choices[0].message.content;
 }
 
 export default async function handler(req, res) {
@@ -223,9 +232,12 @@ export default async function handler(req, res) {
     const uniqueDeps = new Set(dependencies.flatMap(d => d.externalDependencies)).size;
     const dependencyScore = Math.max(0, 100 - uniqueDeps * 2);
 
-    // Simple architecture score (placeholder – advanced analysis removed)
-    const architectureScore = 80;
+    // Architecture score based on patterns and circular dependencies
+    const hasCircularDeps = archInsights.circularDeps.length > 0;
+    const architectureScore = hasCircularDeps ? 60 : 90;
+
     const overallScore = Math.round((documentationScore + maintainabilityScore + dependencyScore + architectureScore) / 4);
+
     res.json({
       status: 'success',
       repoName,
@@ -236,8 +248,15 @@ export default async function handler(req, res) {
         dependencies: dependencyScore,
         architecture: architectureScore
       },
+      architecture: {
+        pattern: archInsights.pattern,
+        layers: archInsights.layers,
+        modules: archInsights.modules.slice(0, 10),
+        circularDependencies: archInsights.circularDeps
+      },
+      coupling: couplingAnalysis,
       metrics,
-      dependencies: dependencies.slice(0, 20),
+      dependencies: dependencies.slice(0, 20), // Top 20 most connected files
       aiReview,
       timestamp: new Date().toISOString()
     });

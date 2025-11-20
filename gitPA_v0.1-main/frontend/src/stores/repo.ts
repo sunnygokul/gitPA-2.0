@@ -208,7 +208,7 @@ export const useRepoStore = defineStore('repo', {
         const summary = `🔧 **Refactoring Analysis Complete**\n\n` +
           `Found ${response.data.stats.total} improvement opportunities:\n` +
           `- 🔴 High Priority: ${response.data.stats.highPriority}\n` +
-          `- 🟡 Medium Priority: ${response.data.stats.mediumPriority}\n` +
+          `- � Medium Priority: ${response.data.stats.mediumPriority}\n` +
           `- 🟢 Low Priority: ${response.data.stats.lowPriority}\n\n` +
           `${response.data.aiAnalysis}`;
         

@@ -147,34 +147,45 @@ function calculateSimilarity(str1: string, str2: string): number {
 
 async function getAIRefactoringSuggestions(files: any[], repoName: string) {
   const apiKey = process.env.HUGGINGFACE_API_KEY || '';
-  const codeContext = files.slice(0, 5).map(f => `File: ${f.path}\n\`\`\`\n${f.content.substring(0, 4000)}\n\`\`\``).join('\n\n');
-  if (!apiKey) {
-    return `AI key missing. Basic refactor hints: focus on long functions, deep nesting, magic numbers, duplication.`;
-  }
-  try {
-    const response = await fetch('https://router.huggingface.co/v1/chat/completions', {
+
+  const codeContext = files
+    .slice(0, 6)
+    .map(f => `File: ${f.path}\n\`\`\`\n${f.content.substring(0, 5000)}\n\`\`\``)
+    .join('\n\n');
+
+  const response = await fetch(
+    'https://router.huggingface.co/v1/chat/completions',
+    {
       method: 'POST',
-      headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify({
         model: 'Qwen/Qwen2.5-7B-Instruct',
         messages: [
-          { role: 'system', content: 'You are an expert code refactoring specialist with deep knowledge of design patterns, SOLID principles, and architecture optimization.' },
-          { role: 'user', content: `Refactor ${repoName}:\n\n${codeContext}\n\nProvide 5-10 suggestions with: Type, Severity, Location, Problem, Solution, Benefits. Focus on: duplication, complexity, performance, security.` }
+          {
+            role: 'system',
+            content: 'You are an expert code refactoring specialist with deep knowledge of design patterns, SOLID principles, and architecture optimization.'
+          },
+          {
+            role: 'user',
+            content: `Refactor ${repoName}:\n\n${codeContext}\n\nProvide 5-10 suggestions with: Type, Severity, Location, Problem, Solution, Benefits. Focus on: duplication, complexity, performance, security.`
+          }
         ],
-        max_tokens: 1500,
+        max_tokens: 2048,
         temperature: 0.3,
       }),
-    });
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`HF API Error: ${response.status} - ${error}`);
     }
-    const data = await response.json();
-    return data.choices?.[0]?.message?.content || 'AI refactoring suggestions unavailable.';
-  } catch (e) {
-    console.error('AI refactor failed, fallback engaged', e);
-    return 'Fallback refactor suggestions unavailable due to AI error.';
+  );
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`HF API Error: ${response.status} - ${error}`);
   }
+
+  const data = await response.json();
+  return data.choices[0].message.content;
 }
 
 export default async function handler(req, res) {

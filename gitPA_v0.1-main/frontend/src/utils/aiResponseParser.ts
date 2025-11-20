@@ -1,6 +1,6 @@
 /**
- * AI Response Parser
- * Parses structured AI responses into displayable sections
+ * AI Response Parser - FIXED VERSION
+ * Parses both markdown-style and bracket-style structured AI responses
  */
 
 export interface MultiFileContext {
@@ -67,99 +67,155 @@ export interface ParsedAIResponse {
 }
 
 /**
- * Parse Multi-file Context Reasoning section
+ * Parse Multi-file Context section (both markdown and bracket formats)
  */
 function parseMultiFileContext(content: string): MultiFileContext | undefined {
-  const match = content.match(/\[Multi-file Context Reasoning\]([\s\S]*?)(?=\[|$)/i);
+  // Try bracket format first: [Multi-file Context Reasoning]
+  let match = content.match(/\[Multi-file Context Reasoning\]([\s\S]*?)(?=\[|$)/i);
+  
+  // Try markdown heading format: ## Multi-file Context Reasoning or just Multi-file Context Reasoning
+  if (!match) {
+    match = content.match(/(?:^|\n)#{0,3}\s*Multi-file Context Reasoning[\s\S]*?(?=\n#{1,3}\s|\n\[|$)/i);
+  }
+  
   if (!match) return undefined;
 
-  const section = match[1].trim();
-  const lines = section.split('\n').filter(line => line.trim());
+  const section = match[0] || match[1] || '';
+  const lines = section.split('\n').filter(line => line.trim() && !line.match(/^#{1,6}\s/));
+
+  // Extract subsections
+  const summaryLines: string[] = [];
+  const dependencyLines: string[] = [];
+  const crossFileLines: string[] = [];
+  
+  let currentSection = 'summary';
+  
+  lines.forEach(line => {
+    const trimmed = line.trim();
+    if (!trimmed) return;
+    
+    // Detect section changes
+    if (trimmed.toLowerCase().includes('dependencies involved') || trimmed.includes('🔗')) {
+      currentSection = 'dependencies';
+      return;
+    }
+    if (trimmed.toLowerCase().includes('cross-file') || trimmed.includes('⚡')) {
+      currentSection = 'crossFile';
+      return;
+    }
+    if (trimmed.toLowerCase().includes('relevant files') || trimmed.includes('📁')) {
+      currentSection = 'summary';
+      return;
+    }
+    
+    // Skip emoji-only lines or section headers
+    if (trimmed.match(/^[🔗⚡📁]+$/)) return;
+    
+    // Add to appropriate section
+    const cleanedLine = trimmed.replace(/^[*\-•]\s*/, '').replace(/^\*\*(.+?)\*\*:?/, '$1:');
+    if (cleanedLine.length > 3) {
+      if (currentSection === 'summary') summaryLines.push(cleanedLine);
+      else if (currentSection === 'dependencies') dependencyLines.push(cleanedLine);
+      else if (currentSection === 'crossFile') crossFileLines.push(cleanedLine);
+    }
+  });
+
+  if (summaryLines.length === 0 && dependencyLines.length === 0 && crossFileLines.length === 0) {
+    return undefined;
+  }
 
   return {
-    summary: lines.filter(l => l.includes('Summary') || l.match(/^-\s/)).map(l => l.replace(/^-\s*/, '')),
-    dependencies: lines.filter(l => l.toLowerCase().includes('dependenc')).map(l => l.replace(/^-\s*/, '')),
-    crossFile: lines.filter(l => l.toLowerCase().includes('cross-file')).map(l => l.replace(/^-\s*/, ''))
+    summary: summaryLines,
+    dependencies: dependencyLines,
+    crossFile: crossFileLines
   };
 }
 
 /**
- * Parse Enhanced Code Review section with security classifications
+ * Parse Security Issues from Enhanced Code Review section
  */
 function parseSecurityIssues(content: string): SecurityIssue[] {
   const issues: SecurityIssue[] = [];
   
-  // Match sections like "1. CRITICAL ISSUES", "2. HIGH ISSUES", etc.
-  const sections = content.match(/\d+\.\s+(CRITICAL|HIGH|MEDIUM|LOW)\s+(?:RISK\s+)?ISSUES[\s\S]*?(?=\d+\.\s+(?:CRITICAL|HIGH|MEDIUM|LOW)|$)/gi);
+  // Look for patterns like "🔴 CRITICAL", "🟠 HIGH", "🟡 MEDIUM", "🟢 LOW"
+  // or "CRITICAL ISSUES", "HIGH RISK ISSUES", etc.
+  const issuePattern = /(?:🔴|🟠|🟡|🟢)?\s*(CRITICAL|HIGH|MEDIUM|LOW)(?:\s+RISK)?\s+ISSUES?[\s\S]*?(?=(?:🔴|🟠|🟡|🟢)?\s*(?:CRITICAL|HIGH|MEDIUM|LOW)|$)/gi;
   
-  if (!sections) return issues;
-
-  sections.forEach(section => {
-    const severityMatch = section.match(/(CRITICAL|HIGH|MEDIUM|LOW)/i);
-    if (!severityMatch) return;
+  const matches = content.matchAll(issuePattern);
+  
+  for (const match of matches) {
+    const severity = match[1].toUpperCase() as SecurityIssue['severity'];
+    const sectionText = match[0];
     
-    const severity = severityMatch[1].toUpperCase() as SecurityIssue['severity'];
+    // Extract individual issues (look for "File:" markers)
+    const filePattern = /File:\s*`?([^`\n]+)`?(?:[\s\S]*?Line:\s*(\d+))?[\s\S]*?Description:\s*([^\n]+(?:\n(?!File:|Attack|Fix|Impact)[^\n]+)*)/gi;
     
-    // Extract individual issues
-    const issueBlocks = section.split(/(?=File:)/i);
+    const fileMatches = sectionText.matchAll(filePattern);
     
-    issueBlocks.forEach(block => {
-      const fileMatch = block.match(/File:\s*(.+?)(?:\n|$)/i);
-      const lineMatch = block.match(/Line:\s*(\d+)/i);
-      const descMatch = block.match(/Description:\s*(.+?)(?:\n|$)/i);
-      const attackMatch = block.match(/Attack Scenario:\s*(.+?)(?:\n|Fix|Impact|$)/is);
-      const fixMatch = block.match(/Fix Recommendation:\s*(.+?)(?:\n|Impact|$)/is);
-      const impactMatch = block.match(/Impact Scope:\s*(.+?)(?:\n|$)/is);
+    for (const fileMatch of fileMatches) {
+      const file = fileMatch[1].trim();
+      const line = fileMatch[2];
+      const description = fileMatch[3].trim();
       
-      if (fileMatch && descMatch) {
-        issues.push({
-          severity,
-          file: fileMatch[1].trim(),
-          line: lineMatch?.[1],
-          description: descMatch[1].trim(),
-          attackScenario: attackMatch?.[1].trim(),
-          fixRecommendation: fixMatch?.[1].trim(),
-          impactScope: impactMatch?.[1].trim()
-        });
-      }
-    });
-  });
-
+      // Try to find attack scenario, fix, and impact
+      const fileContext = sectionText.substring(sectionText.indexOf(file));
+      const attackMatch = fileContext.match(/Attack Scenario:\s*([^\n]+(?:\n(?!Fix|Impact|File:)[^\n]+)*)/i);
+      const fixMatch = fileContext.match(/Fix Recommendation:\s*([^\n]+(?:\n(?!Impact|File:)[^\n]+)*)/i);
+      const impactMatch = fileContext.match(/Impact Scope:\s*([^\n]+)/i);
+      
+      issues.push({
+        severity,
+        file,
+        line,
+        description,
+        attackScenario: attackMatch?.[1].trim(),
+        fixRecommendation: fixMatch?.[1].trim(),
+        impactScope: impactMatch?.[1].trim()
+      });
+    }
+  }
+  
   return issues;
 }
 
 /**
- * Parse Intelligent Refactor Suggestions
+ * Parse Refactoring Suggestions
  */
 function parseRefactorSuggestions(content: string): RefactorSuggestion[] {
   const suggestions: RefactorSuggestion[] = [];
   
+  // Look for [Intelligent Refactor Suggestions] section
   const match = content.match(/\[Intelligent Refactor Suggestions\]([\s\S]*?)(?=\[|$)/i);
   if (!match) return suggestions;
-
+  
   const section = match[1];
-  const blocks = section.split(/(?=File:)/i);
-
-  blocks.forEach(block => {
-    const fileMatch = block.match(/File:\s*(.+?)(?:\n|$)/i);
-    const issueMatch = block.match(/Issue:\s*(.+?)(?:\n|$)/i);
-    const recoMatch = block.match(/(?:Refactor\s+)?Recommendation:\s*(.+?)(?:\n|Impact|Security|Priority|$)/is);
-    const impactMatch = block.match(/Impact on Other Files:\s*(.+?)(?:\n|Security|Priority|$)/is);
-    const secMatch = block.match(/Security Implications:\s*(.+?)(?:\n|Priority|$)/is);
-    const prioMatch = block.match(/Priority:\s*(HIGH|MEDIUM|LOW)/i);
-
-    if (fileMatch && issueMatch && recoMatch) {
+  
+  // Parse individual suggestions (numbered format)
+  const suggestionPattern = /\d+\.\s*File:\s*`?([^`\n]+)`?[\s\S]*?(?=\d+\.\s*File:|$)/gi;
+  const suggestionMatches = section.matchAll(suggestionPattern);
+  
+  for (const suggMatch of suggestionMatches) {
+    const suggText = suggMatch[0];
+    const file = suggMatch[1].trim();
+    
+    const issueMatch = suggText.match(/(?:-\s*)?Issue:\s*([^\n]+(?:\n(?!-\s*(?:Refactor|Impact|Security|Expected))[^\n]+)*)/i);
+    const recommendationMatch = suggText.match(/(?:-\s*)?Refactor Recommendation:\s*([^\n]+(?:\n(?!-\s*(?:Impact|Security|Expected))[^\n]+)*)/i);
+    const impactMatch = suggText.match(/(?:-\s*)?Impact on Other Files:\s*([^\n]+(?:\n(?!-\s*(?:Security|Expected))[^\n]+)*)/i);
+    const securityMatch = suggText.match(/(?:-\s*)?Security Implications:\s*([^\n]+(?:\n(?!-\s*Expected)[^\n]+)*)/i);
+    const priorityMatch = suggText.match(/Priority:\s*(HIGH|MEDIUM|LOW)/i);
+    
+    if (issueMatch && recommendationMatch) {
       suggestions.push({
-        file: fileMatch[1].trim(),
+        file,
         issue: issueMatch[1].trim(),
-        recommendation: recoMatch[1].trim(),
+        recommendation: recommendationMatch[1].trim(),
         impactOnOtherFiles: impactMatch?.[1].trim(),
-        securityImplications: secMatch?.[1].trim(),
-        priority: prioMatch?.[1].toUpperCase() as any
+        securityImplications: securityMatch?.[1].trim(),
+        priority: priorityMatch?.[1].toUpperCase() as RefactorSuggestion['priority']
       });
     }
-  });
-
+  }
+  
   return suggestions;
 }
 
@@ -167,43 +223,38 @@ function parseRefactorSuggestions(content: string): RefactorSuggestion[] {
  * Parse Test Cases
  */
 function parseTestCases(content: string): TestCase[] {
-  const tests: TestCase[] = [];
+  const testCases: TestCase[] = [];
   
-  const match = content.match(/\[Automated Test Suite Generation\]([\s\S]*?)(?=\[ZIP Package Specification\]|$)/i);
-  if (!match) return tests;
-
-  const section = match[1];
-  const testBlocks = section.split(/Test\s+(?:Case\s+)?\d+:/i).filter(b => b.trim());
-
-  testBlocks.forEach(block => {
-    const lines = block.trim().split('\n');
-    const name = lines[0].trim();
-    const code = block.match(/```[\s\S]*?```/)?.[0] || '';
-    
-    if (name) {
-      tests.push({
-        name,
-        code: code.replace(/```\w*\n?|\n?```/g, '').trim(),
-        description: lines.slice(1).find(l => !l.includes('```'))?.trim()
-      });
-    }
-  });
-
-  return tests;
+  // Look for test cases in code blocks with Test Case markers
+  const testPattern = /Test Case \d+:\s*([^\n]+)[\s\S]*?```(\w+)?\n([\s\S]*?)```/gi;
+  const matches = content.matchAll(testPattern);
+  
+  for (const match of matches) {
+    testCases.push({
+      name: match[1].trim(),
+      code: match[3].trim(),
+      description: ''
+    });
+  }
+  
+  return testCases;
 }
 
 /**
- * Parse ZIP Package Specification
+ * Parse ZIP Specification
  */
 function parseZipSpecification(content: string): ZipSpecification | undefined {
-  const match = content.match(/\[ZIP Package Specification\]([\s\S]*?)(?=\[|$)/i);
+  const match = content.match(/\[?ZIP Package Specification\]?[\s\S]*?File Structure:([\s\S]*?)(?=\[|$)/i);
   if (!match) return undefined;
-
-  const section = match[1].trim();
-  const files = section.match(/[-│├└]\s+\S+/g)?.map(f => f.replace(/[-│├└]\s+/, '')) || [];
-
+  
+  const structureText = match[1].trim();
+  const files = structureText
+    .split('\n')
+    .filter(line => line.trim().startsWith('-'))
+    .map(line => line.replace(/^-\s*/, '').trim());
+  
   return {
-    structure: section,
+    structure: structureText,
     files
   };
 }
@@ -212,30 +263,34 @@ function parseZipSpecification(content: string): ZipSpecification | undefined {
  * Parse Maintainability Score
  */
 function parseMaintainabilityScore(content: string): MaintainabilityScore | undefined {
-  const match = content.match(/\[Maintainability Score\]([\s\S]*?)(?=\[|$)/i);
-  if (!match) return undefined;
-
-  const section = match[1];
-  const overallMatch = section.match(/Overall:\s*(\d+)/i);
-  const docMatch = section.match(/Documentation:\s*(\d+)/i);
-  const testMatch = section.match(/Test\s+Coverage:\s*(\d+)/i);
-  const complexMatch = section.match(/Code\s+Complexity:\s*(\d+)/i);
-
+  // Look for score patterns
+  const overallMatch = content.match(/(?:Overall|Maintainability)\s*Score[:\s]*(\d+)(?:\/100)?/i);
+  const docMatch = content.match(/Documentation[:\s]*(\d+)(?:\/100)?/i);
+  const testMatch = content.match(/Test\s*Coverage[:\s]*(\d+)(?:\/100)?/i);
+  const complexityMatch = content.match(/(?:Code\s*)?Complexity[:\s]*(\d+)(?:\/100)?/i);
+  
+  if (!overallMatch) return undefined;
+  
   return {
-    overall: overallMatch ? parseInt(overallMatch[1]) : 0,
+    overall: parseInt(overallMatch[1]),
     documentation: docMatch ? parseInt(docMatch[1]) : undefined,
     testCoverage: testMatch ? parseInt(testMatch[1]) : undefined,
-    codeComplexity: complexMatch ? parseInt(complexMatch[1]) : undefined,
-    breakdown: section
+    codeComplexity: complexityMatch ? parseInt(complexityMatch[1]) : undefined
   };
 }
 
 /**
- * Extract simple text sections
+ * Extract text section by name
  */
 function extractTextSection(content: string, sectionName: string): string | undefined {
-  const regex = new RegExp(`\\[${sectionName}\\]([\\s\\S]*?)(?=\\[|$)`, 'i');
-  const match = content.match(regex);
+  // Try bracket format: [Section Name]
+  let match = content.match(new RegExp(`\\[${sectionName}\\]([\\s\\S]*?)(?=\\[|$)`, 'i'));
+  
+  // Try heading format: ## Section Name
+  if (!match) {
+    match = content.match(new RegExp(`#{1,3}\\s*${sectionName}([\\s\\S]*?)(?=\\n#{1,3}\\s|\\[|$)`, 'i'));
+  }
+  
   return match?.[1].trim();
 }
 
@@ -243,20 +298,22 @@ function extractTextSection(content: string, sectionName: string): string | unde
  * Main parser function
  */
 export function parseAIResponse(content: string): ParsedAIResponse {
-  if (!content) {
+  // Check if this looks like a structured response
+  const hasStructuredMarkers = 
+    content.includes('[Multi-file Context') ||
+    content.includes('[Enhanced Code Review]') ||
+    content.includes('[Intelligent Refactor') ||
+    content.includes('[Automated Test Suite') ||
+    content.includes('Multi-file Context Reasoning') ||
+    content.includes('CRITICAL ISSUES') ||
+    content.includes('HIGH RISK ISSUES') ||
+    content.includes('Test Case 1:');
+
+  if (!hasStructuredMarkers) {
     return {
       hasStructuredContent: false,
-      rawContent: ''
-    };
-  }
-
-  // Check if content has structured sections
-  const hasStructuredContent = /\[Multi-file Context Reasoning\]|\[Enhanced Code Review\]|\[Intelligent Refactor Suggestions\]|\[Automated Test Suite Generation\]/i.test(content);
-
-  if (!hasStructuredContent) {
-    return {
-      hasStructuredContent: false,
-      rawContent: content
+      rawContent: content,
+      additionalContent: content
     };
   }
 
@@ -275,26 +332,26 @@ export function parseAIResponse(content: string): ParsedAIResponse {
     maintainabilityScore: parseMaintainabilityScore(content)
   };
 
-  // Extract any remaining content that wasn't parsed
-  let remainingContent = content;
-  const sectionsToRemove = [
-    'Multi-file Context Reasoning',
-    'Enhanced Code Review',
-    'Intelligent Refactor Suggestions',
-    'Automated Test Suite Generation',
-    'ZIP Package Specification',
-    'Architecture Assessment',
-    'Dependency Risk Analysis',
-    'Performance Concerns',
-    'Maintainability Score'
-  ];
+  // Check if we actually parsed anything
+  const hasParsedContent = 
+    parsed.multiFileContext ||
+    (parsed.securityIssues && parsed.securityIssues.length > 0) ||
+    (parsed.refactorSuggestions && parsed.refactorSuggestions.length > 0) ||
+    (parsed.testCases && parsed.testCases.length > 0) ||
+    parsed.zipSpecification ||
+    parsed.architectureAssessment ||
+    parsed.dependencyRiskAnalysis ||
+    parsed.performanceConcerns ||
+    parsed.maintainabilityScore;
 
-  sectionsToRemove.forEach(section => {
-    const regex = new RegExp(`\\[${section}\\][\\s\\S]*?(?=\\[|$)`, 'gi');
-    remainingContent = remainingContent.replace(regex, '');
-  });
-
-  parsed.additionalContent = remainingContent.trim() || undefined;
+  if (!hasParsedContent) {
+    // Parsing failed, return as unstructured
+    return {
+      hasStructuredContent: false,
+      rawContent: content,
+      additionalContent: content
+    };
+  }
 
   return parsed;
 }

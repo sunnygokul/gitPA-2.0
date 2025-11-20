@@ -47,11 +47,17 @@ export default async function handler(
     res.json({ status: 'success', fileStructure, repo: { name: metadataResponse.data.name, owner: metadataResponse.data.owner.login, description: metadataResponse.data.description, summary } });
   } catch (error: unknown) {
     const err = error as any;
-    // Log useful error details for debugging (response body if available)
-    console.error('scan error', err?.message || err);
-    if (err?.response?.data) {
-      console.error('scan error response data:', err.response.data);
+    console.error('=== SCAN ERROR START ===');
+    console.error('Error message:', err?.message);
+    console.error('Error stack:', err?.stack);
+    console.error('Has GITHUB_TOKEN:', !!process.env.GITHUB_TOKEN);
+    
+    if (err?.response) {
+      console.error('Response status:', err.response.status);
+      console.error('Response data:', JSON.stringify(err.response.data));
     }
+    console.error('=== SCAN ERROR END ===');
+    
     const safeMessage = err?.response?.data?.message || err?.message || 'Failed to scan repository';
     res.status(500).json({ status: 'error', message: String(safeMessage) });
   }

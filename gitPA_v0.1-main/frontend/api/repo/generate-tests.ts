@@ -1,7 +1,7 @@
 import axios from 'axios';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { fetchRepoFiles } from './utils/github-api';
-import type { TestGenerationRequestBody } from './types';
+import { fetchRepoFiles } from './utils/github-api.js';
+import type { TestGenerationRequestBody } from './types.js';
 
 function getLanguage(filename: string): string {
   if (filename.endsWith('.ts') || filename.endsWith('.tsx')) return 'typescript';

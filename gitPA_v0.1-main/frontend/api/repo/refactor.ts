@@ -1,7 +1,7 @@
 import axios from 'axios';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { fetchRepoFiles } from './utils/github-api';
-import type { RefactorRequestBody } from './types';
+import { fetchRepoFiles } from './utils/github-api.js';
+import type { RefactorRequestBody } from './types.js';
 
 interface RefactoringSuggestion {
   file: string;

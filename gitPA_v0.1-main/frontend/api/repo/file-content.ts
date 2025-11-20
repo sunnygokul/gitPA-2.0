@@ -1,6 +1,6 @@
 import axios from 'axios';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import type { FileContentRequestBody } from './types';
+import type { FileContentRequestBody } from './types.js';
 
 export default async function handler(
   req: VercelRequest,

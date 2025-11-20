@@ -1,6 +1,6 @@
 import axios from 'axios';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import type { AssistRequestBody } from './types';
+import type { AssistRequestBody } from './types.js';
 
 const MAX_FILES_IN_CONTEXT = 10; // Reduced to prevent token limit
 const MAX_TOTAL_CONTEXT_SIZE = 80000; // ~20K tokens (4 chars per token)

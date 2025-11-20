@@ -1,7 +1,7 @@
 import axios from 'axios';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { fetchRepoContents } from './utils/github-api';
-import type { ScanRequestBody } from './types';
+import { fetchRepoContents } from './utils/github-api.js';
+import type { ScanRequestBody } from './types.js';
 
 export default async function handler(
   req: VercelRequest,

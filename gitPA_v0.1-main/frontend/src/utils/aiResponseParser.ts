@@ -238,11 +238,34 @@ function parseTestCases(content: string): TestCase[] {
   const matches = content.matchAll(testPattern);
   
   for (const match of matches) {
-    testCases.push({
-      name: match[1].trim(),
-      code: match[3].trim(),
-      description: ''
-    });
+    const name = match[1]?.trim();
+    const code = match[3]?.trim();
+    
+    // Only add if we have valid name and code
+    if (name && code && name !== 'undefined' && code !== 'undefined') {
+      testCases.push({
+        name,
+        code,
+        description: ''
+      });
+    }
+  }
+  
+  // Alternative format: "Test 1\nfilename.ts" without code blocks
+  if (testCases.length === 0) {
+    const simplePattern = /Test \d+\n([^\n]+)/gi;
+    const simpleMatches = content.matchAll(simplePattern);
+    
+    for (const match of simpleMatches) {
+      const name = match[1]?.trim();
+      if (name && name !== 'undefined') {
+        testCases.push({
+          name,
+          code: '// Test code not available in this format',
+          description: 'Test file reference only'
+        });
+      }
+    }
   }
   
   return testCases;

@@ -7,6 +7,7 @@ export default async function handler(
   req: VercelRequest,
   res: VercelResponse
 ): Promise<void> {
+  // Force redeploy - working version
   try {
     const { url } = req.body as ScanRequestBody;
     

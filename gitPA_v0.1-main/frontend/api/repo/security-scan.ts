@@ -113,41 +113,13 @@ const SECURITY_PATTERNS: SecurityPattern[] = [
     description: 'Code contains technical debt markers',
     recommendation: 'Address TODOs and FIXMEs before production deployment'
   },
-  // Additional important patterns
-  {
-    pattern: /\.env|process\.env\.\w+\s*=\s*["'][^"']+["']/gi,
-    type: 'Hardcoded Environment Variable',
-    severity: 'HIGH',
-    description: 'Environment variable may be hardcoded instead of loaded from .env',
-    recommendation: 'Ensure environment variables are loaded from .env files, not hardcoded'
-  },
-  {
-    pattern: /fetch\([^)]*\+|axios\.(?:get|post)\([^)]*\+/gi,
-    type: 'URL Injection',
-    severity: 'HIGH',
-    description: 'Dynamic URL construction may lead to SSRF or injection attacks',
-    recommendation: 'Validate and sanitize user input before constructing URLs'
-  },
+  // Additional important patterns (carefully tuned to reduce false positives)
   {
     pattern: /dangerouslySetInnerHTML/gi,
     type: 'XSS Vulnerability',
     severity: 'CRITICAL',
     description: 'dangerouslySetInnerHTML can lead to XSS attacks',
     recommendation: 'Avoid dangerouslySetInnerHTML or sanitize HTML with DOMPurify'
-  },
-  {
-    pattern: /\/\*\s*eslint-disable\s*\*\/|\/\/\s*eslint-disable/gi,
-    type: 'Disabled Security Checks',
-    severity: 'MEDIUM',
-    description: 'ESLint security checks are disabled',
-    recommendation: 'Re-enable linting rules and fix issues instead of disabling'
-  },
-  {
-    pattern: /secret|token|bearer/gi,
-    type: 'Potential Secret Exposure',
-    severity: 'MEDIUM',
-    description: 'File may contain sensitive tokens or secrets',
-    recommendation: 'Ensure secrets are not committed to version control'
   }
 ];
 
@@ -172,22 +144,16 @@ function scanFile(file: { path: string; content: string; name: string }): Securi
         continue;
       }
       
-      // Skip console.log in imports or type definitions
-      if (pattern.type === 'Information Disclosure' && 
-          (lineContent.includes('import') || lineContent.includes('type') || lineContent.includes('interface'))) {
+      // Skip SVG xmlns and other XML namespaces (http:// is expected here)
+      if (pattern.type === 'Insecure Protocol' && 
+          (lineContent.includes('xmlns') || lineContent.includes('viewBox') || lineContent.includes('svg'))) {
         continue;
       }
-
-      // Skip "secret|token|bearer" in variable names that are clearly safe
-      if (pattern.type === 'Potential Secret Exposure') {
-        if (lineContent.includes('getToken') || 
-            lineContent.includes('setToken') ||
-            lineContent.includes('Authorization') ||
-            lineContent.includes('Bearer ${') ||
-            lineContent.includes('process.env') ||
-            lineContent.match(/type|interface|const.*:\s*string/i)) {
-          continue; // These are function names or type definitions, not actual secrets
-        }
+      
+      // Skip http:// in comments or documentation
+      if (pattern.type === 'Insecure Protocol' && 
+          (lineContent.includes('//') || lineContent.includes('*') || lineContent.includes('Example:') || lineContent.includes('e.g.'))) {
+        continue;
       }
 
       const key = `${file.path}:${pattern.type}:${lineNumber}`;

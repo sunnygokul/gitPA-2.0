@@ -236,10 +236,10 @@
                     'max-w-[85%] rounded-xl shadow-sm',
                     message.role === 'user'
                       ? 'bg-[#1f6feb] text-white px-5 py-3'
-                      : 'bg-[#161b22] border border-[#30363d] px-5 py-4'
+                      : ''
                   ]"
                 >
-                  <MarkdownRenderer v-if="message.role === 'assistant'" :content="message.content" />
+                  <EnhancedAIResponse v-if="message.role === 'assistant'" :content="message.content" />
                   <div v-else class="whitespace-pre-wrap break-words font-medium">{{ message.content }}</div>
                   <CodeBlock 
                     v-if="message.fileContent"
@@ -316,6 +316,7 @@ import { useRepositoryStore } from './stores/repository';
 import { useRepoStore } from './stores/repo';
 import FileStructure from './components/FileStructure.vue';
 import MarkdownRenderer from './components/MarkdownRenderer.vue';
+import EnhancedAIResponse from './components/EnhancedAIResponse.vue';
 import CodeBlock from './components/CodeBlock.vue';
 
 // Repository store for file structure
